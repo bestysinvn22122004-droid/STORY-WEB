@@ -1,0 +1,247 @@
+{% extends "admin/admin_base.html" %}
+
+{% block title %}Trung Tâm Quản Lý Quảng Cáo{% endblock %}
+
+{% block body %}
+<div class="max-w-5xl mx-auto space-y-8">
+    
+    <!-- Header -->
+    <div class="flex flex-wrap items-center justify-between gap-4">
+        <div>
+            <div class="flex items-center space-x-2">
+                <span class="text-2xl">💰</span>
+                <h1 class="text-2xl sm:text-3xl font-black text-gray-900">Trung Tâm Cấu Hình Quảng Cáo</h1>
+            </div>
+            <p class="text-xs sm:text-sm text-gray-500 mt-1">
+                Tự do chèn mã Google AdSense, Adsterra, Ezoic, MGID hoặc banner riêng vào các vị trí tối ưu doanh thu.
+            </p>
+        </div>
+        <button form="ads-form" type="submit" class="bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold px-6 py-3 rounded-xl shadow-lg shadow-orange-500/20 transition active:scale-95 flex items-center space-x-2">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>
+            <span>LƯU CẤU HÌNH QUẢNG CÁO</span>
+        </button>
+    </div>
+
+    {% if saved %}
+    <div class="p-4 bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-2xl flex items-center space-x-3 text-xs font-semibold">
+        <svg class="w-5 h-5 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>
+        <span>Đã lưu thành công cấu hình quảng cáo! Website đã được cập nhật ngay lập tức.</span>
+    </div>
+    {% endif %}
+
+    <form id="ads-form" action="/admin/ads" method="post" class="space-y-8">
+
+        <!-- Global Ad Controls -->
+        <div class="bg-white p-6 rounded-2xl border border-gray-200 shadow-sm space-y-4">
+            <h3 class="font-bold text-base text-gray-900 pb-2 border-b border-gray-100 flex items-center space-x-2">
+                <span>⚙️ Cài Đặt Chung Cho Quảng Cáo</span>
+            </h3>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6 pt-2">
+                <!-- Placeholder Mode -->
+                <div class="flex items-center justify-between p-4 bg-amber-50/50 rounded-xl border border-amber-200/60">
+                    <div>
+                        <span class="text-xs font-bold text-gray-800 block">Chế độ xem trước (Placeholder Test Mode)</span>
+                        <span class="text-[11px] text-gray-500">Hiển thị khung banner mẫu khi chưa dán mã quảng cáo thật.</span>
+                    </div>
+                    <label class="relative inline-flex items-center cursor-pointer">
+                        <input type="checkbox" name="show_ad_placeholders" value="1" {{ 'checked' if settings.get('show_ad_placeholders', '1') == '1' else '' }} class="sr-only peer">
+                        <div class="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-amber-600"></div>
+                    </label>
+                </div>
+
+                <!-- Paragraph Interval -->
+                <div class="p-4 bg-gray-50 rounded-xl border border-gray-200">
+                    <label class="text-xs font-bold text-gray-800 block mb-1">Tần suất chèn quảng cáo giữa các đoạn văn</label>
+                    <span class="text-[11px] text-gray-500 block mb-2">Tự động chèn 1 quảng cáo sau mỗi N đoạn văn trong câu chuyện:</span>
+                    <select name="paragraph_ad_interval" class="w-full bg-white border border-gray-300 rounded-lg px-3 py-2 text-xs font-bold text-gray-800 focus:outline-none focus:border-amber-500">
+                        <option value="2" {{ 'selected' if settings.get('paragraph_ad_interval') == '2' else '' }}>Mỗi 2 đoạn văn (Mật độ cao - Doanh thu tối đa)</option>
+                        <option value="3" {{ 'selected' if settings.get('paragraph_ad_interval', '3') == '3' else '' }}>Mỗi 3 đoạn văn (Khuyên dùng - Cân bằng tốt)</option>
+                        <option value="4" {{ 'selected' if settings.get('paragraph_ad_interval') == '4' else '' }}>Mỗi 4 đoạn văn (Mật độ vừa phải)</option>
+                        <option value="5" {{ 'selected' if settings.get('paragraph_ad_interval') == '5' else '' }}>Mỗi 5 đoạn văn (Mật độ thấp)</option>
+                    </select>
+                </div>
+            </div>
+        </div>
+
+        <!-- 6 Main Ad Slot Cards -->
+        <div class="space-y-6">
+            <h3 class="font-bold text-lg text-gray-900 flex items-center space-x-2">
+                <span>📍 Các Vị Trí Quảng Cáo Chiến Lược</span>
+            </h3>
+
+            <!-- 1. Header Ad -->
+            {% set h_ad = ads.get('header_ad', {}) %}
+            <div class="bg-white rounded-2xl border border-gray-200 shadow-sm p-6 space-y-4">
+                <div class="flex items-center justify-between pb-3 border-b border-gray-100">
+                    <div>
+                        <div class="flex items-center space-x-2">
+                            <span class="w-2.5 h-2.5 rounded-full bg-emerald-500"></span>
+                            <h4 class="font-bold text-sm text-gray-900">1. Banner Đầu Trang (Header Banner Ad)</h4>
+                        </div>
+                        <p class="text-[11px] text-gray-500 mt-0.5">Hiển thị ngay dưới thanh menu. Kích thước tối ưu: 728x90 (PC) hoặc 320x50 / 300x250 (Mobile) / Responsive.</p>
+                    </div>
+                    <label class="relative inline-flex items-center cursor-pointer">
+                        <input type="checkbox" name="header_ad_enabled" value="1" {{ 'checked' if h_ad.get('is_enabled', 1) else '' }} class="sr-only peer">
+                        <div class="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-amber-600"></div>
+                    </label>
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-gray-700 mb-1">Mã quảng cáo HTML / Script / iframe:</label>
+                    <textarea name="header_ad_code" rows="3" placeholder="Dán mã quảng cáo Google AdSense, Adsterra hoặc thẻ <img> banner tại đây..."
+                              class="w-full font-mono text-xs p-3 bg-gray-50 border border-gray-200 rounded-xl focus:bg-white focus:border-amber-500 focus:outline-none">{{ h_ad.get('ad_code', '') }}</textarea>
+                </div>
+            </div>
+
+            <!-- 2. In-Content Ad -->
+            {% set ic_ad = ads.get('in_content_ad', {}) %}
+            <div class="bg-white rounded-2xl border border-gray-200 shadow-sm p-6 space-y-4 border-l-4 border-l-amber-500">
+                <div class="flex items-center justify-between pb-3 border-b border-gray-100">
+                    <div>
+                        <div class="flex items-center space-x-2">
+                            <span class="w-2.5 h-2.5 rounded-full bg-amber-500"></span>
+                            <h4 class="font-bold text-sm text-gray-900">2. Quảng Cáo Giữa Bài Đọc (In-Content Auto Ad) ⭐ TỶ LỆ CLICK CAO NHẤT</h4>
+                        </div>
+                        <p class="text-[11px] text-gray-500 mt-0.5">Tự động lặp lại giữa các đoạn văn. Kích thước tối ưu: 300x250, 336x280 hoặc AdSense In-Article Ad.</p>
+                    </div>
+                    <label class="relative inline-flex items-center cursor-pointer">
+                        <input type="checkbox" name="in_content_ad_enabled" value="1" {{ 'checked' if ic_ad.get('is_enabled', 1) else '' }} class="sr-only peer">
+                        <div class="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-amber-600"></div>
+                    </label>
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-gray-700 mb-1">Mã quảng cáo In-Content:</label>
+                    <textarea name="in_content_ad_code" rows="3" placeholder="Dán mã quảng cáo trong bài viết tại đây..."
+                              class="w-full font-mono text-xs p-3 bg-gray-50 border border-gray-200 rounded-xl focus:bg-white focus:border-amber-500 focus:outline-none">{{ ic_ad.get('ad_code', '') }}</textarea>
+                </div>
+            </div>
+
+            <!-- 3. Pre-Next Button Ad -->
+            {% set bn_ad = ads.get('before_next_button', {}) %}
+            <div class="bg-white rounded-2xl border border-gray-200 shadow-sm p-6 space-y-4 border-l-4 border-l-orange-500">
+                <div class="flex items-center justify-between pb-3 border-b border-gray-100">
+                    <div>
+                        <div class="flex items-center space-x-2">
+                            <span class="w-2.5 h-2.5 rounded-full bg-orange-500"></span>
+                            <h4 class="font-bold text-sm text-gray-900">3. Quảng Cáo Trước Nút "ĐỌC TIẾP PHẦN 2" (Pre-Next CTA Ad)</h4>
+                        </div>
+                        <p class="text-[11px] text-gray-500 mt-0.5">Đặt ngay phía trên nút bấm chuyển phần. Độc giả chắc chắn nhìn thấy trước khi chuyển trang.</p>
+                    </div>
+                    <label class="relative inline-flex items-center cursor-pointer">
+                        <input type="checkbox" name="before_next_button_enabled" value="1" {{ 'checked' if bn_ad.get('is_enabled', 1) else '' }} class="sr-only peer">
+                        <div class="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-amber-600"></div>
+                    </label>
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-gray-700 mb-1">Mã quảng cáo Pre-Next:</label>
+                    <textarea name="before_next_button_code" rows="3" placeholder="Dán mã quảng cáo trước nút chuyển trang tại đây..."
+                              class="w-full font-mono text-xs p-3 bg-gray-50 border border-gray-200 rounded-xl focus:bg-white focus:border-amber-500 focus:outline-none">{{ bn_ad.get('ad_code', '') }}</textarea>
+                </div>
+            </div>
+
+            <!-- 4. After-Next Button Ad -->
+            {% set an_ad = ads.get('after_next_button', {}) %}
+            <div class="bg-white rounded-2xl border border-gray-200 shadow-sm p-6 space-y-4">
+                <div class="flex items-center justify-between pb-3 border-b border-gray-100">
+                    <div>
+                        <div class="flex items-center space-x-2">
+                            <span class="w-2.5 h-2.5 rounded-full bg-indigo-500"></span>
+                            <h4 class="font-bold text-sm text-gray-900">4. Quảng Cáo Sau Nút Chuyển Trang (Post-Next Ad)</h4>
+                        </div>
+                        <p class="text-[11px] text-gray-500 mt-0.5">Nằm bên dưới nút chuyển phần và phía trên danh sách bài liên quan.</p>
+                    </div>
+                    <label class="relative inline-flex items-center cursor-pointer">
+                        <input type="checkbox" name="after_next_button_enabled" value="1" {{ 'checked' if an_ad.get('is_enabled', 1) else '' }} class="sr-only peer">
+                        <div class="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-amber-600"></div>
+                    </label>
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-gray-700 mb-1">Mã quảng cáo Post-Next:</label>
+                    <textarea name="after_next_button_code" rows="3" placeholder="Dán mã quảng cáo tại đây..."
+                              class="w-full font-mono text-xs p-3 bg-gray-50 border border-gray-200 rounded-xl focus:bg-white focus:border-amber-500 focus:outline-none">{{ an_ad.get('ad_code', '') }}</textarea>
+                </div>
+            </div>
+
+            <!-- 5. Sticky Footer Ad -->
+            {% set sf_ad = ads.get('sticky_footer_ad', {}) %}
+            <div class="bg-white rounded-2xl border border-gray-200 shadow-sm p-6 space-y-4 border-l-4 border-l-emerald-500">
+                <div class="flex items-center justify-between pb-3 border-b border-gray-100">
+                    <div>
+                        <div class="flex items-center space-x-2">
+                            <span class="w-2.5 h-2.5 rounded-full bg-emerald-500"></span>
+                            <h4 class="font-bold text-sm text-gray-900">5. Banner Ghim Đáy Màn Hình (Sticky Footer Anchor Ad)</h4>
+                        </div>
+                        <p class="text-[11px] text-gray-500 mt-0.5">Ghim cố định ở đáy màn hình điện thoại & PC, kèm nút "Đóng [X]". Tỷ lệ hiển thị 100%.</p>
+                    </div>
+                    <label class="relative inline-flex items-center cursor-pointer">
+                        <input type="checkbox" name="sticky_footer_ad_enabled" value="1" {{ 'checked' if sf_ad.get('is_enabled', 1) else '' }} class="sr-only peer">
+                        <div class="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-amber-600"></div>
+                    </label>
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-gray-700 mb-1">Mã banner ghim đáy:</label>
+                    <textarea name="sticky_footer_ad_code" rows="3" placeholder="Dán mã quảng cáo ghim đáy tại đây..."
+                              class="w-full font-mono text-xs p-3 bg-gray-50 border border-gray-200 rounded-xl focus:bg-white focus:border-amber-500 focus:outline-none">{{ sf_ad.get('ad_code', '') }}</textarea>
+                </div>
+            </div>
+
+            <!-- 6. Sidebar Ad -->
+            {% set sb_ad = ads.get('sidebar_ad', {}) %}
+            <div class="bg-white rounded-2xl border border-gray-200 shadow-sm p-6 space-y-4">
+                <div class="flex items-center justify-between pb-3 border-b border-gray-100">
+                    <div>
+                        <div class="flex items-center space-x-2">
+                            <span class="w-2.5 h-2.5 rounded-full bg-purple-500"></span>
+                            <h4 class="font-bold text-sm text-gray-900">6. Quảng Cáo Cột Phải (Sidebar Ad)</h4>
+                        </div>
+                        <p class="text-[11px] text-gray-500 mt-0.5">Hiển thị ở cột bên phải trang chủ (Kích thước: 300x250 hoặc 300x600).</p>
+                    </div>
+                    <label class="relative inline-flex items-center cursor-pointer">
+                        <input type="checkbox" name="sidebar_ad_enabled" value="1" {{ 'checked' if sb_ad.get('is_enabled', 1) else '' }} class="sr-only peer">
+                        <div class="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-amber-600"></div>
+                    </label>
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-gray-700 mb-1">Mã quảng cáo cột phải:</label>
+                    <textarea name="sidebar_ad_code" rows="3" placeholder="Dán mã quảng cáo sidebar tại đây..."
+                              class="w-full font-mono text-xs p-3 bg-gray-50 border border-gray-200 rounded-xl focus:bg-white focus:border-amber-500 focus:outline-none">{{ sb_ad.get('ad_code', '') }}</textarea>
+                </div>
+            </div>
+        </div>
+
+        <!-- Head / Body Custom Scripts (AdSense Auto-Ads, Analytics, GTM) -->
+        <div class="bg-white rounded-2xl border border-gray-200 shadow-sm p-6 space-y-4">
+            <h3 class="font-bold text-base text-gray-900 pb-2 border-b border-gray-100 flex items-center space-x-2">
+                <span>🏷️ Mã Script Thẻ &lt;head&gt; (AdSense Auto Ads / Google Tag Manager / Analytics)</span>
+            </h3>
+            <div>
+                <label class="block text-xs font-semibold text-gray-700 mb-1">Mã chèn trong thẻ &lt;head&gt;:</label>
+                <textarea name="head_scripts" rows="3" placeholder="&lt;script async src=&quot;https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-...&quot; crossorigin=&quot;anonymous&quot;&gt;&lt;/script&gt;"
+                          class="w-full font-mono text-xs p-3 bg-gray-50 border border-gray-200 rounded-xl focus:bg-white focus:border-amber-500 focus:outline-none">{{ settings.get('head_scripts', '') }}</textarea>
+                <p class="text-[11px] text-gray-500 mt-1">Dán mã script chung của mạng quảng cáo hoặc mã Google Analytics GA4 tại đây.</p>
+            </div>
+        </div>
+
+        <!-- ads.txt Editor -->
+        <div class="bg-white rounded-2xl border border-gray-200 shadow-sm p-6 space-y-4">
+            <h3 class="font-bold text-base text-gray-900 pb-2 border-b border-gray-100 flex items-center space-x-2">
+                <span>📄 Quản Lý Tệp ads.txt (Xác Minh Google AdSense / Đối Tác)</span>
+            </h3>
+            <div>
+                <label class="block text-xs font-semibold text-gray-700 mb-1">Nội dung tệp /ads.txt:</label>
+                <textarea name="ads_txt" rows="3" placeholder="google.com, pub-XXXXXXXXXXXXXXXX, DIRECT, f08c47fec0942fa0"
+                          class="w-full font-mono text-xs p-3 bg-gray-50 border border-gray-200 rounded-xl focus:bg-white focus:border-amber-500 focus:outline-none">{{ settings.get('ads_txt', '') }}</textarea>
+                <p class="text-[11px] text-gray-500 mt-1">
+                    Độc giả và robot tìm kiếm có thể truy cập tại: <a href="/ads.txt" target="_blank" class="text-amber-600 font-bold hover:underline">/ads.txt ↗</a>
+                </p>
+            </div>
+        </div>
+
+        <div class="text-right pt-4">
+            <button type="submit" class="bg-amber-600 hover:bg-amber-700 text-white text-sm font-bold px-8 py-3.5 rounded-xl shadow-lg shadow-orange-500/20 transition active:scale-95">
+                LƯU TOÀN BỘ CẤU HÌNH QUẢNG CÁO
+            </button>
+        </div>
+    </form>
+</div>
+{% endblock %}

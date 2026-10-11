@@ -1,0 +1,97 @@
+{% extends "admin/admin_base.html" %}
+
+{% block title %}{{ 'Đăng Truyện Mới' if is_new else 'Chỉnh Sửa Truyện' }}{% endblock %}
+
+{% block body %}
+<div class="max-w-4xl mx-auto space-y-6">
+    <div class="flex items-center justify-between">
+        <div>
+            <h1 class="text-2xl font-black text-gray-900">{{ 'Đăng Truyện Mới' if is_new else 'Chỉnh Sửa Truyện' }}</h1>
+            <p class="text-xs text-gray-500">Điền thông tin tiêu đề, hình ảnh minh họa và nội dung</p>
+        </div>
+        <a href="/admin/stories" class="text-xs text-gray-500 hover:text-gray-800 font-medium">← Quay lại danh sách</a>
+    </div>
+
+    <form action="{{ '/admin/stories/new' if is_new else '/admin/stories/' ~ story.id ~ '/edit' }}" method="post" class="bg-white rounded-2xl border border-gray-200 shadow-sm p-6 sm:p-8 space-y-6">
+        
+        <div>
+            <label class="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-2">Tiêu Đề Truyện *</label>
+            <input type="text" name="title" required value="{{ story.title if story else '' }}" placeholder="Ví dụ: Phần 2: Người Anh Trai Trở Về Khi Không Ai Bảo Vệ Tôi"
+                   class="w-full px-4 py-3 bg-gray-50 border border-gray-300 rounded-xl text-sm font-semibold focus:bg-white focus:border-amber-500 focus:outline-none">
+        </div>
+
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+                <label class="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-2">Đường dẫn tĩnh (Slug)</label>
+                <input type="text" name="slug" value="{{ story.slug if story else '' }}" placeholder="Để trống sẽ tự động tạo từ tiêu đề"
+                       class="w-full px-4 py-2.5 bg-gray-50 border border-gray-300 rounded-xl text-xs font-mono focus:bg-white focus:border-amber-500 focus:outline-none">
+            </div>
+
+            <div>
+                <label class="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-2">Chuyên Mục *</label>
+                <select name="category_id" required class="w-full px-4 py-2.5 bg-gray-50 border border-gray-300 rounded-xl text-xs font-medium focus:bg-white focus:border-amber-500 focus:outline-none">
+                    {% for cat in categories %}
+                    <option value="{{ cat.id }}" {{ 'selected' if story and story.category_id == cat.id else '' }}>{{ cat.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+        </div>
+
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+                <label class="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-2">Ảnh bìa (URL ảnh)</label>
+                <input type="url" name="cover_image" value="{{ story.cover_image if story else '' }}" placeholder="https://images.unsplash.com/... hoặc link ảnh bất kỳ"
+                       class="w-full px-4 py-2.5 bg-gray-50 border border-gray-300 rounded-xl text-xs focus:bg-white focus:border-amber-500 focus:outline-none">
+            </div>
+
+            <div class="flex items-center space-x-6 pt-6">
+                <div>
+                    <label class="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-1">Thời gian đọc (Phút)</label>
+                    <input type="number" name="reading_time" value="{{ story.reading_time if story else 4 }}" min="1" max="60"
+                           class="w-24 px-3 py-2 bg-gray-50 border border-gray-300 rounded-xl text-xs text-center font-bold">
+                </div>
+
+                <div class="flex items-center space-x-2 pt-4">
+                    <input type="checkbox" id="is_featured" name="is_featured" value="1" {{ 'checked' if story and story.is_featured else '' }} class="w-4 h-4 text-amber-600 rounded">
+                    <label for="is_featured" class="text-xs font-bold text-gray-700">Truyện nổi bật (Đầu trang)</label>
+                </div>
+            </div>
+        </div>
+
+        <div>
+            <label class="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-2">Tóm Tắt Ngắn (Mồi Độc Giả / SEO Meta) *</label>
+            <textarea name="excerpt" rows="2" placeholder="Tóm tắt 2-3 câu lôi cuốn nhất để gây tò mò khi độc giả thấy link trên mạng xã hội..."
+                      class="w-full px-4 py-2.5 bg-gray-50 border border-gray-300 rounded-xl text-xs focus:bg-white focus:border-amber-500 focus:outline-none">{{ story.excerpt if story else '' }}</textarea>
+        </div>
+
+        {% if is_new %}
+        <div class="pt-4 border-t border-gray-200">
+            <h3 class="text-sm font-bold text-amber-800 mb-3 flex items-center space-x-2">
+                <span>📖 Nội Dung Phần 1 (Khởi đầu câu chuyện)</span>
+            </h3>
+
+            <div class="space-y-4">
+                <div>
+                    <label class="block text-xs font-semibold text-gray-700 mb-1">Tiêu Đề Phần 1</label>
+                    <input type="text" name="part_1_title" value="Phần 1: Khởi đầu câu chuyện" class="w-full px-3 py-2 bg-gray-50 border border-gray-300 rounded-xl text-xs font-medium">
+                </div>
+
+                <div>
+                    <label class="block text-xs font-semibold text-gray-700 mb-1">Nội Dung Phần 1 * (Mỗi đoạn văn cách nhau 1 dòng trống)</label>
+                    <textarea name="part_1_content" required rows="10" placeholder="Viết hoặc dán nội dung truyện vào đây. Hệ thống sẽ tự động chèn banner quảng cáo giữa các đoạn văn..."
+                              class="w-full px-4 py-3 bg-gray-50 border border-gray-300 rounded-xl text-sm leading-relaxed focus:bg-white focus:border-amber-500 focus:outline-none"></textarea>
+                    <p class="text-[11px] text-gray-500 mt-1">Sau khi tạo xong truyện, bạn có thể bấm vào nút "Quản lý các phần" để thêm tiếp Phần 2, Phần 3...</p>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+
+        <div class="pt-4 border-t border-gray-100 flex justify-end space-x-3">
+            <a href="/admin/stories" class="px-5 py-2.5 rounded-xl border border-gray-300 text-xs font-semibold text-gray-600 hover:bg-gray-50">Hủy</a>
+            <button type="submit" class="bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold px-6 py-2.5 rounded-xl shadow transition">
+                {{ 'Tạo Truyện & Tiếp Tục Thêm Phần' if is_new else 'Cập Nhật Thay Đổi' }}
+            </button>
+        </div>
+    </form>
+</div>
+{% endblock %}

@@ -1,0 +1,79 @@
+{% extends "admin/admin_base.html" %}
+
+{% block title %}Quản Lý Truyện{% endblock %}
+
+{% block body %}
+<div class="max-w-6xl mx-auto space-y-6">
+    <div class="flex flex-wrap items-center justify-between gap-4">
+        <div>
+            <h1 class="text-2xl font-black text-gray-900">Danh Sách Câu Chuyện</h1>
+            <p class="text-xs text-gray-500">Quản lý nội dung, các phần đọc và lượt xem</p>
+        </div>
+        <a href="/admin/stories/new" class="inline-flex items-center space-x-2 bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold px-4 py-2.5 rounded-xl shadow transition">
+            <span>+ Đăng Truyện Mới</span>
+        </a>
+    </div>
+
+    <div class="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
+        <div class="overflow-x-auto">
+            <table class="w-full text-left text-xs">
+                <thead class="bg-gray-50 text-gray-500 uppercase tracking-wider border-b border-gray-200">
+                    <tr>
+                        <th class="px-6 py-3.5 font-bold">Hình Ảnh & Tên Truyện</th>
+                        <th class="px-6 py-3.5 font-bold">Chuyên Mục</th>
+                        <th class="px-6 py-3.5 font-bold text-center">Số Phần</th>
+                        <th class="px-6 py-3.5 font-bold text-center">Lượt Xem</th>
+                        <th class="px-6 py-3.5 font-bold text-center">Nổi Bật</th>
+                        <th class="px-6 py-3.5 font-bold text-right">Hành Động</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-gray-100">
+                    {% for s in stories %}
+                    <tr class="hover:bg-gray-50 transition">
+                        <td class="px-6 py-4">
+                            <div class="flex items-center space-x-3">
+                                <img src="{{ s.cover_image or 'https://images.unsplash.com/photo-1544717305-2782549b5136?auto=format&fit=crop&w=100&q=80' }}" 
+                                     alt="" class="w-12 h-12 rounded-lg object-cover flex-shrink-0 bg-gray-100">
+                                <div class="max-w-xs sm:max-w-md">
+                                    <a href="/story/{{ s.slug }}/part-1" target="_blank" class="font-bold text-gray-900 hover:text-amber-600 transition block truncate">
+                                        {{ s.title }}
+                                    </a>
+                                    <span class="text-[10px] text-gray-400 font-mono">/story/{{ s.slug }}</span>
+                                </div>
+                            </div>
+                        </td>
+                        <td class="px-6 py-4 text-gray-600 font-medium">
+                            {{ s.category_name or 'Chưa phân loại' }}
+                        </td>
+                        <td class="px-6 py-4 text-center">
+                            <a href="/admin/stories/{{ s.id }}/parts" class="bg-amber-100 text-amber-800 hover:bg-amber-200 px-2.5 py-1 rounded-full font-bold transition inline-block">
+                                {{ s.part_count }} Phần ➔
+                            </a>
+                        </td>
+                        <td class="px-6 py-4 text-center text-gray-500 font-medium">
+                            {{ s.views }}
+                        </td>
+                        <td class="px-6 py-4 text-center">
+                            {% if s.is_featured %}
+                            <span class="text-amber-500 font-bold">★ Có</span>
+                            {% else %}
+                            <span class="text-gray-300">-</span>
+                            {% endif %}
+                        </td>
+                        <td class="px-6 py-4 text-right space-x-2">
+                            <a href="/admin/stories/{{ s.id }}/parts" class="text-blue-600 hover:underline font-semibold">Các phần</a>
+                            <span class="text-gray-300">|</span>
+                            <a href="/admin/stories/{{ s.id }}/edit" class="text-amber-600 hover:underline font-semibold">Sửa</a>
+                            <span class="text-gray-300">|</span>
+                            <form action="/admin/stories/{{ s.id }}/delete" method="post" class="inline" onsubmit="return confirm('Bạn có chắc chắn muốn xóa câu chuyện này cùng toàn bộ các phần?');">
+                                <button type="submit" class="text-red-500 hover:underline font-semibold">Xóa</button>
+                            </form>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}

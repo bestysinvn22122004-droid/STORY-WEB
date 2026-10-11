@@ -1,0 +1,43 @@
+{% extends "admin/admin_base.html" %}
+
+{% block title %}Chỉnh Sửa {{ part.title }}{% endblock %}
+
+{% block body %}
+<div class="max-w-4xl mx-auto space-y-6">
+    <div class="flex items-center justify-between">
+        <div>
+            <span class="text-xs text-gray-500">{{ story.title }}</span>
+            <h1 class="text-2xl font-black text-gray-900">Chỉnh Sửa Phần {{ part.part_number }}</h1>
+        </div>
+        <a href="/admin/stories/{{ story.id }}/parts" class="text-xs text-gray-500 hover:text-gray-800 font-medium">← Quay lại danh sách các phần</a>
+    </div>
+
+    <form action="/admin/parts/{{ part.id }}/edit" method="post" class="bg-white rounded-2xl border border-gray-200 shadow-sm p-6 sm:p-8 space-y-4">
+        <div class="grid grid-cols-1 sm:grid-cols-4 gap-4">
+            <div>
+                <label class="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-1">Số thứ tự phần</label>
+                <input type="number" name="part_number" value="{{ part.part_number }}" min="1" required
+                       class="w-full px-3 py-2 bg-gray-50 border border-gray-300 rounded-xl text-xs font-bold text-center focus:bg-white focus:border-amber-500 focus:outline-none">
+            </div>
+
+            <div class="sm:col-span-3">
+                <label class="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-1">Tiêu Đề Phần</label>
+                <input type="text" name="title" required value="{{ part.title }}"
+                       class="w-full px-3 py-2 bg-gray-50 border border-gray-300 rounded-xl text-xs font-semibold focus:bg-white focus:border-amber-500 focus:outline-none">
+            </div>
+        </div>
+
+        <div>
+            <label class="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-1">Nội Dung Phần Này (Mỗi đoạn văn cách nhau 1 dòng trống)</label>
+            <textarea name="content" required rows="14" class="w-full px-4 py-3 bg-gray-50 border border-gray-300 rounded-xl text-sm leading-relaxed focus:bg-white focus:border-amber-500 focus:outline-none">{{ part.content }}</textarea>
+        </div>
+
+        <div class="pt-4 border-t border-gray-100 flex justify-end space-x-3">
+            <a href="/admin/stories/{{ story.id }}/parts" class="px-5 py-2.5 rounded-xl border border-gray-300 text-xs font-semibold text-gray-600 hover:bg-gray-50">Hủy</a>
+            <button type="submit" class="bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold px-6 py-2.5 rounded-xl shadow transition">
+                Lưu Thay Đổi
+            </button>
+        </div>
+    </form>
+</div>
+{% endblock %}

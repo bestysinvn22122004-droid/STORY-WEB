@@ -1,0 +1,93 @@
+{% extends "admin/admin_base.html" %}
+
+{% block title %}Quản Lý Các Phần - {{ story.title }}{% endblock %}
+
+{% block body %}
+<div class="max-w-4xl mx-auto space-y-8">
+    <div class="flex items-center justify-between">
+        <div>
+            <span class="text-xs text-amber-600 font-bold uppercase tracking-wider">Quản Lý Các Phần Truyện</span>
+            <h1 class="text-2xl font-black text-gray-900">{{ story.title }}</h1>
+        </div>
+        <a href="/admin/stories" class="text-xs text-gray-500 hover:text-gray-800 font-medium">← Quay lại danh sách truyện</a>
+    </div>
+
+    <!-- Existing Parts List -->
+    <div class="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
+        <div class="p-5 border-b border-gray-100 flex items-center justify-between">
+            <h3 class="font-bold text-sm text-gray-900">Danh Sách Các Phần Hiện Tại ({{ parts | length }})</h3>
+            <span class="text-xs text-gray-400">Độc giả sẽ bấm nút để chuyển dần qua các phần này</span>
+        </div>
+
+        <div class="divide-y divide-gray-100">
+            {% for p in parts %}
+            <div class="p-5 flex items-center justify-between hover:bg-gray-50 transition">
+                <div class="space-y-1">
+                    <div class="flex items-center space-x-2">
+                        <span class="bg-amber-100 text-amber-800 text-[11px] font-bold px-2.5 py-0.5 rounded-full">
+                            Phần {{ p.part_number }}
+                        </span>
+                        <h4 class="font-bold text-sm text-gray-900">{{ p.title }}</h4>
+                    </div>
+                    <span class="text-xs text-gray-400 block">👁️ {{ p.views }} lượt đọc • Tạo lúc: {{ p.created_at[:10] }}</span>
+                </div>
+
+                <div class="flex items-center space-x-3 text-xs">
+                    <a href="/story/{{ story.slug }}/part-{{ p.part_number }}" target="_blank" class="text-gray-500 hover:text-amber-600 font-medium">
+                        Xem thử ↗
+                    </a>
+                    <span class="text-gray-300">|</span>
+                    <a href="/admin/parts/{{ p.id }}/edit" class="text-amber-600 hover:underline font-semibold">
+                        Chỉnh sửa
+                    </a>
+                    {% if parts | length > 1 %}
+                    <span class="text-gray-300">|</span>
+                    <form action="/admin/parts/{{ p.id }}/delete" method="post" class="inline" onsubmit="return confirm('Bạn có chắc chắn muốn xóa phần này?');">
+                        <button type="submit" class="text-red-500 hover:underline font-semibold">Xóa</button>
+                    </form>
+                    {% endif %}
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+
+    <!-- Form to Add Next Part -->
+    <div class="bg-white rounded-2xl border border-gray-200 shadow-sm p-6 sm:p-8 space-y-6">
+        <div class="border-b border-gray-100 pb-3">
+            <h3 class="font-bold text-base text-gray-900 flex items-center space-x-2">
+                <span>➕ Thêm Phần Mới (Phần {{ next_part_num }})</span>
+            </h3>
+            <p class="text-xs text-gray-500 mt-0.5">Mỗi phần được tạo sẽ kích hoạt thêm 1 trang đọc truyện mới và nhiều vị trí hiển thị quảng cáo</p>
+        </div>
+
+        <form action="/admin/stories/{{ story.id }}/parts/new" method="post" class="space-y-4">
+            <div class="grid grid-cols-1 sm:grid-cols-4 gap-4">
+                <div>
+                    <label class="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-1">Số thứ tự phần</label>
+                    <input type="number" name="part_number" value="{{ next_part_num }}" min="1" required
+                           class="w-full px-3 py-2 bg-gray-50 border border-gray-300 rounded-xl text-xs font-bold text-center focus:bg-white focus:border-amber-500 focus:outline-none">
+                </div>
+
+                <div class="sm:col-span-3">
+                    <label class="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-1">Tiêu Đề Phần</label>
+                    <input type="text" name="title" required value="Phần {{ next_part_num }}: " placeholder="Ví dụ: Phần 2: Tiếng Động Cơ Gầm Rú Và Cuộc Chạm Trán"
+                           class="w-full px-3 py-2 bg-gray-50 border border-gray-300 rounded-xl text-xs font-semibold focus:bg-white focus:border-amber-500 focus:outline-none">
+                </div>
+            </div>
+
+            <div>
+                <label class="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-1">Nội Dung Phần Này (Mỗi đoạn văn cách nhau 1 dòng trống)</label>
+                <textarea name="content" required rows="10" placeholder="Dán hoặc viết nội dung của phần này vào đây..."
+                          class="w-full px-4 py-3 bg-gray-50 border border-gray-300 rounded-xl text-sm leading-relaxed focus:bg-white focus:border-amber-500 focus:outline-none"></textarea>
+            </div>
+
+            <div class="text-right pt-2">
+                <button type="submit" class="bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold px-6 py-2.5 rounded-xl shadow transition">
+                    + Thêm Phần {{ next_part_num }} Vào Truyện
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}
