@@ -208,9 +208,42 @@ async def story_part_view(request: Request, slug: str, part_number: int):
         cursor.execute("SELECT * FROM story_parts WHERE id = ?", (all_parts[0]["id"],))
         current_part = dict(cursor.fetchone())
 
+    # Detect referrer source (Facebook, Google, TikTok, Twitter, Direct)
+    referer_header = request.headers.get("referer", "").lower()
+    user_agent = (request.headers.get("user-agent") or "")[:150]
+
+    source = "Direct"
+    if "facebook.com" in referer_header or "fb.me" in referer_header or "l.facebook" in referer_header:
+        source = "Facebook"
+    elif "t.co" in referer_header or "twitter.com" in referer_header or "x.com" in referer_header:
+        source = "Twitter / X"
+    elif "google." in referer_header:
+        source = "Google"
+    elif "pinterest" in referer_header:
+        source = "Pinterest"
+    elif "tiktok" in referer_header:
+        source = "TikTok"
+    elif referer_header and str(request.base_url.netloc) not in referer_header:
+        source = "External Web"
+
     # Increment views
     cursor.execute("UPDATE stories SET views = views + 1 WHERE id = ?", (story["id"],))
     cursor.execute("UPDATE story_parts SET views = views + 1 WHERE id = ?", (current_part["id"],))
+
+    # Log view event
+    cursor.execute("""
+    INSERT INTO analytics_events (story_id, part_number, event_type, referrer, user_agent)
+    VALUES (?, ?, 'view', ?, ?)
+    """, (story["id"], current_part["part_number"], source, user_agent))
+
+    # Log Next Part button click if navigated via CTA button
+    if request.query_params.get("click") == "1" or request.query_params.get("from_part"):
+        cursor.execute("UPDATE stories SET next_clicks = COALESCE(next_clicks, 0) + 1 WHERE id = ?", (story["id"],))
+        cursor.execute("""
+        INSERT INTO analytics_events (story_id, part_number, event_type, referrer, user_agent)
+        VALUES (?, ?, 'next_part_click', ?, ?)
+        """, (story["id"], current_part["part_number"], source, user_agent))
+
     conn.commit()
 
     # Related stories

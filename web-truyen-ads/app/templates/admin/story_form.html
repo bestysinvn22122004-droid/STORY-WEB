@@ -1,34 +1,81 @@
 {% extends "admin/admin_base.html" %}
 
-{% block title %}{{ 'Đăng Truyện Mới' if is_new else 'Chỉnh Sửa Truyện' }}{% endblock %}
+{% block title %}{{ 'Create New Story' if is_new else 'Edit Story' }}{% endblock %}
 
 {% block body %}
 <div class="max-w-4xl mx-auto space-y-6">
     <div class="flex items-center justify-between">
         <div>
-            <h1 class="text-2xl font-black text-gray-900">{{ 'Đăng Truyện Mới' if is_new else 'Chỉnh Sửa Truyện' }}</h1>
-            <p class="text-xs text-gray-500">Điền thông tin tiêu đề, hình ảnh minh họa và nội dung</p>
+            <h1 class="text-2xl font-black text-gray-900">{{ 'Post New Story' if is_new else 'Edit Story' }}</h1>
+            <p class="text-xs text-gray-500">Upload cover image from your device, set story details & first chapter</p>
         </div>
-        <a href="/admin/stories" class="text-xs text-gray-500 hover:text-gray-800 font-medium">← Quay lại danh sách</a>
+        <a href="/admin/stories" class="text-xs text-gray-500 hover:text-gray-800 font-medium">← Back to Stories List</a>
     </div>
 
-    <form action="{{ '/admin/stories/new' if is_new else '/admin/stories/' ~ story.id ~ '/edit' }}" method="post" class="bg-white rounded-2xl border border-gray-200 shadow-sm p-6 sm:p-8 space-y-6">
+    <form action="{{ '/admin/stories/new' if is_new else '/admin/stories/' ~ story.id ~ '/edit' }}" 
+          method="post" 
+          enctype="multipart/form-data" 
+          class="bg-white rounded-2xl border border-gray-200 shadow-sm p-6 sm:p-8 space-y-6">
         
+        <!-- Story Title -->
         <div>
-            <label class="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-2">Tiêu Đề Truyện *</label>
-            <input type="text" name="title" required value="{{ story.title if story else '' }}" placeholder="Ví dụ: Phần 2: Người Anh Trai Trở Về Khi Không Ai Bảo Vệ Tôi"
+            <label class="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-2">Story Title (Tiêu Đề Truyện) *</label>
+            <input type="text" name="title" required value="{{ story.title if story else '' }}" 
+                   placeholder="e.g. Part 2: The Brother Who Returned When No One Protected Me"
                    class="w-full px-4 py-3 bg-gray-50 border border-gray-300 rounded-xl text-sm font-semibold focus:bg-white focus:border-amber-500 focus:outline-none">
+        </div>
+
+        <!-- Cover Image: DIRECT FILE UPLOAD + URL Option -->
+        <div class="p-5 bg-stone-50 rounded-2xl border border-gray-200 space-y-4">
+            <div>
+                <label class="block text-xs font-bold text-gray-900 uppercase tracking-wider mb-1">
+                    📸 Cover Image (Tải Ảnh Bìa Từ Máy Tính / Điện Thoại) *
+                </label>
+                <p class="text-[11px] text-gray-500 mb-3">Upload an image file directly (JPG, PNG, WEBP) or paste an image URL below.</p>
+            </div>
+
+            <!-- Upload Box with Preview -->
+            <div class="grid grid-cols-1 sm:grid-cols-12 gap-4 items-center">
+                <div class="sm:col-span-8">
+                    <label class="flex flex-col items-center justify-center border-2 border-dashed border-amber-300 hover:border-amber-500 rounded-2xl p-6 bg-white cursor-pointer hover:bg-amber-50/30 transition group">
+                        <svg class="w-8 h-8 text-amber-500 mb-2 group-hover:scale-110 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>
+                        <span class="text-xs font-bold text-amber-900 mb-0.5">Click to choose image from your computer</span>
+                        <span class="text-[10px] text-gray-400">Supports JPG, PNG, WEBP up to 10MB</span>
+                        <input type="file" name="cover_file" id="cover_file" accept="image/*" class="hidden" onchange="previewImage(this)">
+                    </label>
+                </div>
+
+                <div class="sm:col-span-4 flex flex-col items-center justify-center">
+                    <div id="preview_container" class="w-full h-32 rounded-xl overflow-hidden bg-gray-200 border border-gray-300 flex items-center justify-center text-xs text-gray-400 relative">
+                        {% if story and story.cover_image %}
+                        <img id="preview_img" src="{{ story.cover_image }}" alt="Cover" class="w-full h-full object-cover">
+                        {% else %}
+                        <img id="preview_img" src="" alt="Cover" class="w-full h-full object-cover hidden">
+                        <span id="preview_placeholder" class="text-[11px] text-gray-400 text-center px-2">Image preview will appear here</span>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+
+            <!-- Alternative URL input -->
+            <div class="pt-2">
+                <span class="text-[11px] text-gray-500 block mb-1">Or paste direct image URL (Hoặc dán link ảnh nếu có):</span>
+                <input type="text" name="cover_image" id="cover_image_url" value="{{ story.cover_image if story else '' }}" 
+                       placeholder="https://images.unsplash.com/... (optional if you uploaded a file above)"
+                       class="w-full px-3 py-2 bg-white border border-gray-300 rounded-xl text-xs focus:border-amber-500 focus:outline-none"
+                       oninput="previewFromUrl(this.value)">
+            </div>
         </div>
 
         <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
-                <label class="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-2">Đường dẫn tĩnh (Slug)</label>
-                <input type="text" name="slug" value="{{ story.slug if story else '' }}" placeholder="Để trống sẽ tự động tạo từ tiêu đề"
+                <label class="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-2">SEO Slug (Đường dẫn tĩnh)</label>
+                <input type="text" name="slug" value="{{ story.slug if story else '' }}" placeholder="Auto-generated from title if left blank"
                        class="w-full px-4 py-2.5 bg-gray-50 border border-gray-300 rounded-xl text-xs font-mono focus:bg-white focus:border-amber-500 focus:outline-none">
             </div>
 
             <div>
-                <label class="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-2">Chuyên Mục *</label>
+                <label class="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-2">Category (Chuyên Mục) *</label>
                 <select name="category_id" required class="w-full px-4 py-2.5 bg-gray-50 border border-gray-300 rounded-xl text-xs font-medium focus:bg-white focus:border-amber-500 focus:outline-none">
                     {% for cat in categories %}
                     <option value="{{ cat.id }}" {{ 'selected' if story and story.category_id == cat.id else '' }}>{{ cat.name }}</option>
@@ -39,59 +86,77 @@
 
         <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
-                <label class="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-2">Ảnh bìa (URL ảnh)</label>
-                <input type="url" name="cover_image" value="{{ story.cover_image if story else '' }}" placeholder="https://images.unsplash.com/... hoặc link ảnh bất kỳ"
-                       class="w-full px-4 py-2.5 bg-gray-50 border border-gray-300 rounded-xl text-xs focus:bg-white focus:border-amber-500 focus:outline-none">
+                <label class="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-1">Estimated Reading Time (Minutes)</label>
+                <input type="number" name="reading_time" value="{{ story.reading_time if story else 4 }}" min="1" max="60"
+                       class="w-28 px-3 py-2 bg-gray-50 border border-gray-300 rounded-xl text-xs text-center font-bold">
             </div>
 
-            <div class="flex items-center space-x-6 pt-6">
-                <div>
-                    <label class="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-1">Thời gian đọc (Phút)</label>
-                    <input type="number" name="reading_time" value="{{ story.reading_time if story else 4 }}" min="1" max="60"
-                           class="w-24 px-3 py-2 bg-gray-50 border border-gray-300 rounded-xl text-xs text-center font-bold">
-                </div>
-
-                <div class="flex items-center space-x-2 pt-4">
-                    <input type="checkbox" id="is_featured" name="is_featured" value="1" {{ 'checked' if story and story.is_featured else '' }} class="w-4 h-4 text-amber-600 rounded">
-                    <label for="is_featured" class="text-xs font-bold text-gray-700">Truyện nổi bật (Đầu trang)</label>
-                </div>
+            <div class="flex items-center space-x-2 pt-5">
+                <input type="checkbox" id="is_featured" name="is_featured" value="1" {{ 'checked' if story and story.is_featured else '' }} class="w-4 h-4 text-amber-600 rounded">
+                <label for="is_featured" class="text-xs font-bold text-gray-700">Featured Story (Show at top of Homepage)</label>
             </div>
         </div>
 
         <div>
-            <label class="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-2">Tóm Tắt Ngắn (Mồi Độc Giả / SEO Meta) *</label>
-            <textarea name="excerpt" rows="2" placeholder="Tóm tắt 2-3 câu lôi cuốn nhất để gây tò mò khi độc giả thấy link trên mạng xã hội..."
+            <label class="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-2">Summary / Hook Excerpt (Tóm tắt mồi câu độc giả) *</label>
+            <textarea name="excerpt" rows="2" placeholder="Catchy hook description (2-3 sentences) displayed on Facebook / social preview cards..."
                       class="w-full px-4 py-2.5 bg-gray-50 border border-gray-300 rounded-xl text-xs focus:bg-white focus:border-amber-500 focus:outline-none">{{ story.excerpt if story else '' }}</textarea>
         </div>
 
         {% if is_new %}
         <div class="pt-4 border-t border-gray-200">
             <h3 class="text-sm font-bold text-amber-800 mb-3 flex items-center space-x-2">
-                <span>📖 Nội Dung Phần 1 (Khởi đầu câu chuyện)</span>
+                <span>📖 Part 1 Content (Phần 1 - Khởi đầu câu chuyện)</span>
             </h3>
 
             <div class="space-y-4">
                 <div>
-                    <label class="block text-xs font-semibold text-gray-700 mb-1">Tiêu Đề Phần 1</label>
-                    <input type="text" name="part_1_title" value="Phần 1: Khởi đầu câu chuyện" class="w-full px-3 py-2 bg-gray-50 border border-gray-300 rounded-xl text-xs font-medium">
+                    <label class="block text-xs font-semibold text-gray-700 mb-1">Part 1 Title</label>
+                    <input type="text" name="part_1_title" value="Part 1: The Beginning" class="w-full px-3 py-2 bg-gray-50 border border-gray-300 rounded-xl text-xs font-medium">
                 </div>
 
                 <div>
-                    <label class="block text-xs font-semibold text-gray-700 mb-1">Nội Dung Phần 1 * (Mỗi đoạn văn cách nhau 1 dòng trống)</label>
-                    <textarea name="part_1_content" required rows="10" placeholder="Viết hoặc dán nội dung truyện vào đây. Hệ thống sẽ tự động chèn banner quảng cáo giữa các đoạn văn..."
+                    <label class="block text-xs font-semibold text-gray-700 mb-1">Part 1 Story Content * (Separate paragraphs with an empty blank line)</label>
+                    <textarea name="part_1_content" required rows="10" placeholder="Paste or type story content here. Ads will automatically be injected between paragraphs..."
                               class="w-full px-4 py-3 bg-gray-50 border border-gray-300 rounded-xl text-sm leading-relaxed focus:bg-white focus:border-amber-500 focus:outline-none"></textarea>
-                    <p class="text-[11px] text-gray-500 mt-1">Sau khi tạo xong truyện, bạn có thể bấm vào nút "Quản lý các phần" để thêm tiếp Phần 2, Phần 3...</p>
+                    <p class="text-[11px] text-gray-500 mt-1">After creating the story, you can easily click "Manage Parts" to add Part 2, Part 3, etc.</p>
                 </div>
             </div>
         </div>
         {% endif %}
 
         <div class="pt-4 border-t border-gray-100 flex justify-end space-x-3">
-            <a href="/admin/stories" class="px-5 py-2.5 rounded-xl border border-gray-300 text-xs font-semibold text-gray-600 hover:bg-gray-50">Hủy</a>
+            <a href="/admin/stories" class="px-5 py-2.5 rounded-xl border border-gray-300 text-xs font-semibold text-gray-600 hover:bg-gray-50">Cancel</a>
             <button type="submit" class="bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold px-6 py-2.5 rounded-xl shadow transition">
-                {{ 'Tạo Truyện & Tiếp Tục Thêm Phần' if is_new else 'Cập Nhật Thay Đổi' }}
+                {{ 'Create Story & Add Next Parts' if is_new else 'Save Changes' }}
             </button>
         </div>
     </form>
 </div>
+
+<script>
+function previewImage(input) {
+    if (input.files && input.files[0]) {
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            const img = document.getElementById('preview_img');
+            const placeholder = document.getElementById('preview_placeholder');
+            img.src = e.target.result;
+            img.classList.remove('hidden');
+            if (placeholder) placeholder.classList.add('hidden');
+        };
+        reader.readAsDataURL(input.files[0]);
+    }
+}
+
+function previewFromUrl(url) {
+    if (url && url.startsWith('http')) {
+        const img = document.getElementById('preview_img');
+        const placeholder = document.getElementById('preview_placeholder');
+        img.src = url;
+        img.classList.remove('hidden');
+        if (placeholder) placeholder.classList.add('hidden');
+    }
+}
+</script>
 {% endblock %}

@@ -1,16 +1,16 @@
 {% extends "admin/admin_base.html" %}
 
-{% block title %}Quản Lý Truyện{% endblock %}
+{% block title %}Story Management & Traffic Analytics{% endblock %}
 
 {% block body %}
 <div class="max-w-6xl mx-auto space-y-6">
     <div class="flex flex-wrap items-center justify-between gap-4">
         <div>
-            <h1 class="text-2xl font-black text-gray-900">Danh Sách Câu Chuyện</h1>
-            <p class="text-xs text-gray-500">Quản lý nội dung, các phần đọc và lượt xem</p>
+            <h1 class="text-2xl font-black text-gray-900">Stories & Traffic Analytics</h1>
+            <p class="text-xs text-gray-500">Monitor article views, reader click-through rates (CTR) to next parts, and referrers</p>
         </div>
         <a href="/admin/stories/new" class="inline-flex items-center space-x-2 bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold px-4 py-2.5 rounded-xl shadow transition">
-            <span>+ Đăng Truyện Mới</span>
+            <span>+ Post New Story</span>
         </a>
     </div>
 
@@ -19,22 +19,24 @@
             <table class="w-full text-left text-xs">
                 <thead class="bg-gray-50 text-gray-500 uppercase tracking-wider border-b border-gray-200">
                     <tr>
-                        <th class="px-6 py-3.5 font-bold">Hình Ảnh & Tên Truyện</th>
-                        <th class="px-6 py-3.5 font-bold">Chuyên Mục</th>
-                        <th class="px-6 py-3.5 font-bold text-center">Số Phần</th>
-                        <th class="px-6 py-3.5 font-bold text-center">Lượt Xem</th>
-                        <th class="px-6 py-3.5 font-bold text-center">Nổi Bật</th>
-                        <th class="px-6 py-3.5 font-bold text-right">Hành Động</th>
+                        <th class="px-5 py-3.5 font-bold">Story & Thumbnail</th>
+                        <th class="px-4 py-3.5 font-bold">Category</th>
+                        <th class="px-3 py-3.5 font-bold text-center">Parts</th>
+                        <th class="px-4 py-3.5 font-bold text-center">Total Views</th>
+                        <th class="px-4 py-3.5 font-bold text-center">Next Part Clicks</th>
+                        <th class="px-4 py-3.5 font-bold text-center">Retention (CTR)</th>
+                        <th class="px-4 py-3.5 font-bold text-center">Top Referrer</th>
+                        <th class="px-5 py-3.5 font-bold text-right">Actions</th>
                     </tr>
                 </thead>
                 <tbody class="divide-y divide-gray-100">
                     {% for s in stories %}
                     <tr class="hover:bg-gray-50 transition">
-                        <td class="px-6 py-4">
+                        <td class="px-5 py-4">
                             <div class="flex items-center space-x-3">
                                 <img src="{{ s.cover_image or 'https://images.unsplash.com/photo-1544717305-2782549b5136?auto=format&fit=crop&w=100&q=80' }}" 
-                                     alt="" class="w-12 h-12 rounded-lg object-cover flex-shrink-0 bg-gray-100">
-                                <div class="max-w-xs sm:max-w-md">
+                                     alt="" class="w-12 h-12 rounded-lg object-cover flex-shrink-0 bg-gray-100 border border-gray-200">
+                                <div class="max-w-xs sm:max-w-sm">
                                     <a href="/story/{{ s.slug }}/part-1" target="_blank" class="font-bold text-gray-900 hover:text-amber-600 transition block truncate">
                                         {{ s.title }}
                                     </a>
@@ -42,31 +44,43 @@
                                 </div>
                             </div>
                         </td>
-                        <td class="px-6 py-4 text-gray-600 font-medium">
-                            {{ s.category_name or 'Chưa phân loại' }}
+                        <td class="px-4 py-4 text-gray-600 font-medium whitespace-nowrap">
+                            {{ s.category_name or 'Uncategorized' }}
                         </td>
-                        <td class="px-6 py-4 text-center">
-                            <a href="/admin/stories/{{ s.id }}/parts" class="bg-amber-100 text-amber-800 hover:bg-amber-200 px-2.5 py-1 rounded-full font-bold transition inline-block">
-                                {{ s.part_count }} Phần ➔
+                        <td class="px-3 py-4 text-center whitespace-nowrap">
+                            <a href="/admin/stories/{{ s.id }}/parts" class="bg-amber-100 text-amber-800 hover:bg-amber-200 px-2 py-0.5 rounded-full font-bold transition inline-block">
+                                {{ s.part_count }} Parts ➔
                             </a>
                         </td>
-                        <td class="px-6 py-4 text-center text-gray-500 font-medium">
-                            {{ s.views }}
+                        <td class="px-4 py-4 text-center whitespace-nowrap">
+                            <span class="font-bold text-gray-900">{{ s.views }}</span>
+                            <span class="text-[10px] text-gray-400 block">views</span>
                         </td>
-                        <td class="px-6 py-4 text-center">
-                            {% if s.is_featured %}
-                            <span class="text-amber-500 font-bold">★ Có</span>
-                            {% else %}
-                            <span class="text-gray-300">-</span>
-                            {% endif %}
+                        <td class="px-4 py-4 text-center whitespace-nowrap">
+                            <span class="font-bold text-orange-600">{{ s.next_clicks or 0 }}</span>
+                            <span class="text-[10px] text-gray-400 block">clicks</span>
                         </td>
-                        <td class="px-6 py-4 text-right space-x-2">
-                            <a href="/admin/stories/{{ s.id }}/parts" class="text-blue-600 hover:underline font-semibold">Các phần</a>
+                        <td class="px-4 py-4 text-center whitespace-nowrap">
+                            <span class="bg-emerald-100 text-emerald-800 px-2.5 py-0.5 rounded-full font-bold">
+                                {{ s.retention_rate }}
+                            </span>
+                        </td>
+                        <td class="px-4 py-4 text-center whitespace-nowrap">
+                            <span class="inline-flex items-center space-x-1 px-2 py-0.5 rounded text-[11px] font-semibold {{ 'bg-blue-100 text-blue-800' if 'Facebook' in s.top_referrer else 'bg-gray-100 text-gray-700' }}">
+                                <span>{{ s.top_referrer }}</span>
+                            </span>
+                        </td>
+                        <td class="px-5 py-4 text-right space-x-2 whitespace-nowrap">
+                            <a href="/admin/stories/{{ s.id }}/traffic" class="text-emerald-600 hover:underline font-bold" title="View Detailed Traffic Breakdown">
+                                📊 Stats
+                            </a>
                             <span class="text-gray-300">|</span>
-                            <a href="/admin/stories/{{ s.id }}/edit" class="text-amber-600 hover:underline font-semibold">Sửa</a>
+                            <a href="/admin/stories/{{ s.id }}/parts" class="text-blue-600 hover:underline font-semibold">Parts</a>
                             <span class="text-gray-300">|</span>
-                            <form action="/admin/stories/{{ s.id }}/delete" method="post" class="inline" onsubmit="return confirm('Bạn có chắc chắn muốn xóa câu chuyện này cùng toàn bộ các phần?');">
-                                <button type="submit" class="text-red-500 hover:underline font-semibold">Xóa</button>
+                            <a href="/admin/stories/{{ s.id }}/edit" class="text-amber-600 hover:underline font-semibold">Edit</a>
+                            <span class="text-gray-300">|</span>
+                            <form action="/admin/stories/{{ s.id }}/delete" method="post" class="inline" onsubmit="return confirm('Are you sure you want to delete this story?');">
+                                <button type="submit" class="text-red-500 hover:underline font-semibold">Delete</button>
                             </form>
                         </td>
                     </tr>

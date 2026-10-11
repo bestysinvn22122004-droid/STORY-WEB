@@ -83,6 +83,26 @@ def init_db():
     )
     """)
 
+    # Table: Analytics & Traffic Tracking (Views, Clicks to Next Part, Referrers)
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS analytics_events (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        story_id INTEGER,
+        part_number INTEGER DEFAULT 1,
+        event_type TEXT NOT NULL, -- 'view', 'next_part_click', 'share'
+        referrer TEXT DEFAULT 'Direct',
+        user_agent TEXT,
+        created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (story_id) REFERENCES stories (id) ON DELETE CASCADE
+    )
+    """)
+
+    # Check and add next_clicks column to stories if not present
+    cursor.execute("PRAGMA table_info(stories)")
+    columns = [col[1] for col in cursor.fetchall()]
+    if "next_clicks" not in columns:
+        cursor.execute("ALTER TABLE stories ADD COLUMN next_clicks INTEGER DEFAULT 0")
+
     conn.commit()
 
     # Seed Default Settings in English
@@ -91,6 +111,7 @@ def init_db():
         "tagline": "Touching Life Stories, Family Drama & Inspiring Lessons",
         "meta_description": "Read touching real life stories, family dramas, military reunions, and emotional life lessons every day.",
         "contact_email": "contact@story.id.vn",
+        "admin_username": "admin",
         "admin_password_hash": hash_password("admin123"),
         "adsense_client_id": "",
         "head_scripts": "",

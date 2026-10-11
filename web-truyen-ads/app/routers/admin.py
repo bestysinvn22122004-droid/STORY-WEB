@@ -1,7 +1,9 @@
 import os
 import re
+import time
+import shutil
 import unicodedata
-from fastapi import APIRouter, Request, Form, Response, Depends, HTTPException, status
+from fastapi import APIRouter, Request, Form, Response, Depends, HTTPException, status, UploadFile, File
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from ..database import get_db, hash_password
@@ -10,8 +12,11 @@ router = APIRouter(prefix="/admin")
 TEMPLATES_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), "templates")
 templates = Jinja2Templates(directory=TEMPLATES_DIR)
 
+UPLOAD_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), "static", "uploads")
+os.makedirs(UPLOAD_DIR, exist_ok=True)
+
 def slugify(text: str) -> str:
-    """Convert Vietnamese and special characters to URL-friendly slug"""
+    """Convert title to SEO friendly URL slug"""
     text = unicodedata.normalize('NFKD', text).encode('ascii', 'ignore').decode('utf-8')
     text = re.sub(r'[^\w\s-]', '', text).strip().lower()
     return re.sub(r'[-\s]+', '-', text)
@@ -20,12 +25,16 @@ def is_authenticated(request: Request) -> bool:
     session = request.cookies.get("admin_session")
     return session == "authenticated_admin"
 
-def require_auth(request: Request):
-    if not is_authenticated(request):
-        raise HTTPException(
-            status_code=status.HTTP_303_SEE_OTHER,
-            headers={"Location": "/admin/login"}
-        )
+def save_uploaded_cover(file: UploadFile) -> str | None:
+    if not file or not file.filename:
+        return None
+    # Sanitize filename
+    clean_name = re.sub(r'[^\w\.-]', '_', file.filename)
+    filename = f"{int(time.time())}_{clean_name}"
+    target_path = os.path.join(UPLOAD_DIR, filename)
+    with open(target_path, "wb") as buffer:
+        shutil.copyfileobj(file.file, buffer)
+    return f"/static/uploads/{filename}"
 
 @router.get("/login", response_class=HTMLResponse)
 async def login_page(request: Request, error: str = None):
@@ -37,19 +46,22 @@ async def login_page(request: Request, error: str = None):
     })
 
 @router.post("/login")
-async def login_submit(password: str = Form(...)):
+async def login_submit(username: str = Form(...), password: str = Form(...)):
     conn = get_db()
     cursor = conn.cursor()
-    cursor.execute("SELECT value FROM site_settings WHERE key = 'admin_password_hash'")
-    stored_hash = cursor.fetchone()
+    cursor.execute("SELECT key, value FROM site_settings WHERE key IN ('admin_username', 'admin_password_hash')")
+    settings = {row["key"]: row["value"] for row in cursor.fetchall()}
     conn.close()
 
-    if stored_hash and hash_password(password) == stored_hash["value"]:
+    expected_user = settings.get("admin_username", "admin")
+    expected_hash = settings.get("admin_password_hash", hash_password("admin123"))
+
+    if username.strip() == expected_user and hash_password(password.strip()) == expected_hash:
         response = RedirectResponse(url="/admin/dashboard", status_code=303)
         response.set_cookie(key="admin_session", value="authenticated_admin", max_age=86400 * 7, httponly=True)
         return response
     else:
-        return RedirectResponse(url="/admin/login?error=Mật khẩu không chính xác (Mặc định: admin123)", status_code=303)
+        return RedirectResponse(url="/admin/login?error=Invalid username or password. Default: admin / admin123", status_code=303)
 
 @router.get("/logout")
 async def logout():
@@ -74,19 +86,40 @@ async def dashboard(request: Request):
     cursor.execute("SELECT COALESCE(SUM(views), 0) FROM stories")
     total_views = cursor.fetchone()[0]
 
+    cursor.execute("SELECT COALESCE(SUM(next_clicks), 0) FROM stories")
+    total_next_clicks = cursor.fetchone()[0]
+
     cursor.execute("SELECT COUNT(*) FROM ads_config WHERE is_enabled = 1 AND LENGTH(TRIM(ad_code)) > 0")
     active_ads = cursor.fetchone()[0]
 
-    # Recent stories
+    # Stories with detailed traffic metrics
     cursor.execute("""
     SELECT s.*, c.name as category_name,
            (SELECT COUNT(*) FROM story_parts WHERE story_id = s.id) as part_count
     FROM stories s
     LEFT JOIN categories c ON s.category_id = c.id
-    ORDER BY s.id DESC
+    ORDER BY s.views DESC, s.id DESC
     LIMIT 10
     """)
-    recent_stories = [dict(r) for r in cursor.fetchall()]
+    stories_raw = cursor.fetchall()
+    stories = []
+    for row in stories_raw:
+        item = dict(row)
+        views = item.get("views", 0) or 0
+        clicks = item.get("next_clicks", 0) or 0
+        item["retention_rate"] = f"{round((clicks / views) * 100, 1)}%" if views > 0 else "0%"
+        stories.append(item)
+
+    # Top traffic sources
+    cursor.execute("""
+    SELECT referrer, COUNT(*) as count
+    FROM analytics_events
+    WHERE event_type = 'view'
+    GROUP BY referrer
+    ORDER BY count DESC
+    LIMIT 5
+    """)
+    top_referrers = [dict(r) for r in cursor.fetchall()]
 
     conn.close()
 
@@ -95,11 +128,13 @@ async def dashboard(request: Request):
         "total_stories": total_stories,
         "total_parts": total_parts,
         "total_views": total_views,
+        "total_next_clicks": total_next_clicks,
         "active_ads": active_ads,
-        "stories": recent_stories
+        "stories": stories,
+        "top_referrers": top_referrers
     })
 
-# Stories List
+# Stories List with Traffic & Clicks
 @router.get("/stories", response_class=HTMLResponse)
 async def stories_list(request: Request):
     if not is_authenticated(request):
@@ -114,12 +149,92 @@ async def stories_list(request: Request):
     LEFT JOIN categories c ON s.category_id = c.id
     ORDER BY s.id DESC
     """)
-    stories = [dict(r) for r in cursor.fetchall()]
+    raw_stories = cursor.fetchall()
+    stories = []
+    for r in raw_stories:
+        item = dict(r)
+        v = item.get("views", 0) or 0
+        nc = item.get("next_clicks", 0) or 0
+        item["retention_rate"] = f"{round((nc / v) * 100, 1)}%" if v > 0 else "0%"
+
+        # Query top traffic source for this story
+        cursor.execute("""
+        SELECT referrer, COUNT(*) as ref_count
+        FROM analytics_events
+        WHERE story_id = ? AND event_type = 'view'
+        GROUP BY referrer
+        ORDER BY ref_count DESC
+        LIMIT 1
+        """, (item["id"],))
+        top_ref = cursor.fetchone()
+        item["top_referrer"] = top_ref["referrer"] if top_ref else "Direct"
+
+        stories.append(item)
+
     conn.close()
 
     return templates.TemplateResponse(request=request, name="admin/stories.html", context={
         "request": request,
         "stories": stories
+    })
+
+# Story Traffic Details
+@router.get("/stories/{story_id}/traffic", response_class=HTMLResponse)
+async def story_traffic_details(request: Request, story_id: int):
+    if not is_authenticated(request):
+        return RedirectResponse(url="/admin/login", status_code=303)
+
+    conn = get_db()
+    cursor = conn.cursor()
+    cursor.execute("SELECT * FROM stories WHERE id = ?", (story_id,))
+    story = cursor.fetchone()
+    if not story:
+        conn.close()
+        raise HTTPException(status_code=404, detail="Story not found")
+
+    story = dict(story)
+
+    # Traffic by Referrer
+    cursor.execute("""
+    SELECT referrer, COUNT(*) as count
+    FROM analytics_events
+    WHERE story_id = ? AND event_type = 'view'
+    GROUP BY referrer
+    ORDER BY count DESC
+    """, (story_id,))
+    sources = [dict(r) for r in cursor.fetchall()]
+
+    # Views per Part
+    cursor.execute("""
+    SELECT part_number, views, title
+    FROM story_parts
+    WHERE story_id = ?
+    ORDER BY part_number ASC
+    """, (story_id,))
+    parts_stats = [dict(r) for r in cursor.fetchall()]
+
+    # Recent Event Logs
+    cursor.execute("""
+    SELECT event_type, part_number, referrer, created_at
+    FROM analytics_events
+    WHERE story_id = ?
+    ORDER BY id DESC
+    LIMIT 25
+    """, (story_id,))
+    recent_logs = [dict(r) for r in cursor.fetchall()]
+
+    conn.close()
+
+    views = story.get("views", 0) or 0
+    next_clicks = story.get("next_clicks", 0) or 0
+    story["retention_rate"] = f"{round((next_clicks / views) * 100, 1)}%" if views > 0 else "0%"
+
+    return templates.TemplateResponse(request=request, name="admin/story_traffic.html", context={
+        "request": request,
+        "story": story,
+        "sources": sources,
+        "parts_stats": parts_stats,
+        "recent_logs": recent_logs
     })
 
 # New Story Page
@@ -148,13 +263,20 @@ async def story_create(
     category_id: int = Form(...),
     excerpt: str = Form(""),
     cover_image: str = Form(""),
+    cover_file: UploadFile = File(None),
     is_featured: int = Form(0),
     reading_time: int = Form(5),
-    part_1_title: str = Form("Phần 1"),
+    part_1_title: str = Form("Part 1: The Beginning"),
     part_1_content: str = Form(...)
 ):
     if not slug or not slug.strip():
         slug = slugify(title)
+
+    # Check for uploaded cover file
+    if cover_file and cover_file.filename:
+        saved_path = save_uploaded_cover(cover_file)
+        if saved_path:
+            cover_image = saved_path
 
     conn = get_db()
     cursor = conn.cursor()
@@ -196,7 +318,7 @@ async def story_edit_page(request: Request, story_id: int):
     conn.close()
 
     if not story:
-        raise HTTPException(status_code=404, detail="Không tìm thấy truyện")
+        raise HTTPException(status_code=404, detail="Story not found")
 
     return templates.TemplateResponse(request=request, name="admin/story_form.html", context={
         "request": request,
@@ -213,9 +335,16 @@ async def story_update(
     category_id: int = Form(...),
     excerpt: str = Form(""),
     cover_image: str = Form(""),
+    cover_file: UploadFile = File(None),
     is_featured: int = Form(0),
     reading_time: int = Form(5)
 ):
+    # Check for uploaded cover file
+    if cover_file and cover_file.filename:
+        saved_path = save_uploaded_cover(cover_file)
+        if saved_path:
+            cover_image = saved_path
+
     conn = get_db()
     cursor = conn.cursor()
     cursor.execute("""
@@ -231,13 +360,14 @@ async def story_update(
 async def story_delete(story_id: int):
     conn = get_db()
     cursor = conn.cursor()
+    cursor.execute("DELETE FROM analytics_events WHERE story_id = ?", (story_id,))
     cursor.execute("DELETE FROM story_parts WHERE story_id = ?", (story_id,))
     cursor.execute("DELETE FROM stories WHERE id = ?", (story_id,))
     conn.commit()
     conn.close()
     return RedirectResponse(url="/admin/stories", status_code=303)
 
-# Story Parts Management (Chapters)
+# Story Parts Management
 @router.get("/stories/{story_id}/parts", response_class=HTMLResponse)
 async def story_parts_page(request: Request, story_id: int):
     if not is_authenticated(request):
@@ -249,7 +379,7 @@ async def story_parts_page(request: Request, story_id: int):
     story = cursor.fetchone()
     if not story:
         conn.close()
-        raise HTTPException(status_code=404, detail="Không tìm thấy truyện")
+        raise HTTPException(status_code=404, detail="Story not found")
 
     cursor.execute("SELECT * FROM story_parts WHERE story_id = ? ORDER BY part_number ASC", (story_id,))
     parts = [dict(r) for r in cursor.fetchall()]
@@ -292,7 +422,7 @@ async def part_edit_page(request: Request, part_id: int):
     part = cursor.fetchone()
     if not part:
         conn.close()
-        raise HTTPException(status_code=404, detail="Không tìm thấy phần truyện")
+        raise HTTPException(status_code=404, detail="Story part not found")
 
     cursor.execute("SELECT * FROM stories WHERE id = ?", (part["story_id"],))
     story = cursor.fetchone()
@@ -373,7 +503,6 @@ async def ads_center_save(request: Request):
         ad_code = form.get(f"{key}_code", "")
         cursor.execute("UPDATE ads_config SET is_enabled = ?, ad_code = ? WHERE slot_key = ?", (is_enabled, ad_code, key))
 
-    # General ad settings
     ads_txt = form.get("ads_txt", "")
     paragraph_interval = form.get("paragraph_ad_interval", "3")
     show_placeholders = "1" if "show_ad_placeholders" in form else "0"
@@ -416,21 +545,22 @@ async def settings_save(
     tagline: str = Form(""),
     meta_description: str = Form(""),
     contact_email: str = Form(""),
+    admin_username: str = Form("admin"),
     current_password: str = Form(""),
     new_password: str = Form("")
 ):
     conn = get_db()
     cursor = conn.cursor()
 
-    # If updating password
     if new_password:
         cursor.execute("SELECT value FROM site_settings WHERE key = 'admin_password_hash'")
         stored = cursor.fetchone()["value"]
-        if hash_password(current_password) != stored:
+        if hash_password(current_password.strip()) != stored:
             conn.close()
-            return RedirectResponse(url="/admin/settings?error=Mật khẩu hiện tại không đúng", status_code=303)
-        cursor.execute("UPDATE site_settings SET value = ? WHERE key = 'admin_password_hash'", (hash_password(new_password),))
+            return RedirectResponse(url="/admin/settings?error=Current password is incorrect", status_code=303)
+        cursor.execute("UPDATE site_settings SET value = ? WHERE key = 'admin_password_hash'", (hash_password(new_password.strip()),))
 
+    cursor.execute("UPDATE site_settings SET value = ? WHERE key = 'admin_username'", (admin_username.strip(),))
     cursor.execute("UPDATE site_settings SET value = ? WHERE key = 'site_name'", (site_name,))
     cursor.execute("UPDATE site_settings SET value = ? WHERE key = 'tagline'", (tagline,))
     cursor.execute("UPDATE site_settings SET value = ? WHERE key = 'meta_description'", (meta_description,))

@@ -1,0 +1,135 @@
+{% extends "admin/admin_base.html" %}
+
+{% block title %}Traffic Analytics - {{ story.title }}{% endblock %}
+
+{% block body %}
+<div class="max-w-5xl mx-auto space-y-6">
+    <div class="flex items-center justify-between">
+        <div>
+            <span class="text-xs text-amber-600 font-bold uppercase tracking-wider">Detailed Article Analytics</span>
+            <h1 class="text-2xl font-black text-gray-900">{{ story.title }}</h1>
+        </div>
+        <a href="/admin/stories" class="text-xs text-gray-500 hover:text-gray-800 font-medium">← Back to Stories List</a>
+    </div>
+
+    <!-- Summary Metrics Cards -->
+    <div class="grid grid-cols-1 sm:grid-cols-3 gap-5">
+        <div class="bg-white p-6 rounded-2xl border border-gray-200 shadow-sm">
+            <span class="text-xs font-bold uppercase tracking-wider text-gray-400">Total Article Views</span>
+            <p class="text-3xl font-black text-gray-900 mt-1">{{ story.views }}</p>
+            <span class="text-[11px] text-gray-500 mt-1 block">Accumulated reader impressions</span>
+        </div>
+
+        <div class="bg-white p-6 rounded-2xl border border-gray-200 shadow-sm">
+            <span class="text-xs font-bold uppercase tracking-wider text-gray-400">Next Part Clicks</span>
+            <p class="text-3xl font-black text-orange-600 mt-1">{{ story.next_clicks or 0 }}</p>
+            <span class="text-[11px] text-gray-500 mt-1 block">Readers who clicked "Continue to Part 2 / 3"</span>
+        </div>
+
+        <div class="bg-white p-6 rounded-2xl border border-gray-200 shadow-sm">
+            <span class="text-xs font-bold uppercase tracking-wider text-gray-400">Viral Retention Rate (CTR)</span>
+            <p class="text-3xl font-black text-emerald-600 mt-1">{{ story.retention_rate }}</p>
+            <span class="text-[11px] text-gray-500 mt-1 block">% readers converting to next ad impression</span>
+        </div>
+    </div>
+
+    <!-- Parts Breakdown & Traffic Sources -->
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+        
+        <!-- Views per Part -->
+        <div class="bg-white rounded-2xl border border-gray-200 shadow-sm p-6 space-y-4">
+            <h3 class="font-bold text-sm text-gray-900 pb-2 border-b border-gray-100 flex items-center justify-between">
+                <span>📑 Breakdown by Chapter / Part</span>
+                <span class="text-xs font-normal text-gray-400">{{ parts_stats | length }} Parts</span>
+            </h3>
+
+            <div class="space-y-3">
+                {% for part in parts_stats %}
+                <div class="p-3 bg-stone-50 rounded-xl border border-gray-200 flex items-center justify-between">
+                    <div>
+                        <span class="text-xs font-bold text-gray-900 block">Part {{ part.part_number }}: {{ part.title }}</span>
+                        <a href="/story/{{ story.slug }}/part-{{ part.part_number }}" target="_blank" class="text-[10px] text-amber-600 hover:underline">
+                            View Live Article ↗
+                        </a>
+                    </div>
+                    <span class="bg-white px-3 py-1 rounded-lg border border-gray-200 text-xs font-extrabold text-gray-800">
+                        {{ part.views }} views
+                    </span>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+
+        <!-- Traffic Referrer Sources -->
+        <div class="bg-white rounded-2xl border border-gray-200 shadow-sm p-6 space-y-4">
+            <h3 class="font-bold text-sm text-gray-900 pb-2 border-b border-gray-100 flex items-center justify-between">
+                <span>🌐 Inbound Traffic Sources</span>
+                <span class="text-xs font-normal text-gray-400">Social & Search</span>
+            </h3>
+
+            {% if sources %}
+            <div class="space-y-2.5">
+                {% for s in sources %}
+                <div class="flex items-center justify-between p-3 bg-gray-50 rounded-xl">
+                    <div class="flex items-center space-x-2">
+                        <span class="w-2.5 h-2.5 rounded-full {{ 'bg-blue-600' if 'Facebook' in s.referrer else ('bg-red-500' if 'Google' in s.referrer else 'bg-amber-500') }}"></span>
+                        <span class="text-xs font-bold text-gray-800">{{ s.referrer }}</span>
+                    </div>
+                    <span class="text-xs font-extrabold text-gray-900">{{ s.count }} visits</span>
+                </div>
+                {% endfor %}
+            </div>
+            {% else %}
+            <p class="text-xs text-gray-400 py-6 text-center">No referral data recorded yet.</p>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Recent Traffic Logs -->
+    <div class="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
+        <div class="p-5 border-b border-gray-100 flex items-center justify-between">
+            <h3 class="font-bold text-sm text-gray-900">Recent Reader Activity Stream</h3>
+            <span class="text-xs text-gray-400">Last 25 interactions</span>
+        </div>
+
+        <div class="overflow-x-auto">
+            <table class="w-full text-left text-xs">
+                <thead class="bg-gray-50 text-gray-500 uppercase tracking-wider border-b border-gray-200">
+                    <tr>
+                        <th class="px-5 py-3 font-semibold">Event Type</th>
+                        <th class="px-5 py-3 font-semibold text-center">Part</th>
+                        <th class="px-5 py-3 font-semibold">Source / Referrer</th>
+                        <th class="px-5 py-3 font-semibold text-right">Timestamp</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-gray-100">
+                    {% for log in recent_logs %}
+                    <tr class="hover:bg-gray-50/80 transition">
+                        <td class="px-5 py-3">
+                            {% if log.event_type == 'next_part_click' %}
+                            <span class="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold bg-orange-100 text-orange-800">
+                                🔥 Clicked Next Part CTA
+                            </span>
+                            {% else %}
+                            <span class="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold bg-blue-100 text-blue-800">
+                                👁️ Page View
+                            </span>
+                            {% endif %}
+                        </td>
+                        <td class="px-5 py-3 text-center font-bold text-gray-700">
+                            Part {{ log.part_number }}
+                        </td>
+                        <td class="px-5 py-3 font-medium text-gray-600">
+                            {{ log.referrer }}
+                        </td>
+                        <td class="px-5 py-3 text-right text-gray-400 font-mono text-[11px]">
+                            {{ log.created_at }}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}

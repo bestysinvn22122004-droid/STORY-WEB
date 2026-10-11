@@ -104,7 +104,7 @@
                     {{ next_part.title }}
                 </h3>
                 
-                <a href="/story/{{ story.slug }}/part-{{ next_part.part_number }}" 
+                <a href="/story/{{ story.slug }}/part-{{ next_part.part_number }}?from_part={{ current_part.part_number }}&click=1" 
                    class="inline-flex items-center justify-center space-x-3 w-full sm:w-auto px-8 py-4 rounded-2xl bg-gradient-to-r from-amber-600 via-orange-600 to-amber-700 hover:from-amber-700 hover:to-orange-800 text-white text-base sm:text-lg font-extrabold shadow-xl shadow-orange-600/30 hover:scale-[1.02] active:scale-95 transition-all animate-pulse">
                     <span>CONTINUE TO PART {{ next_part.part_number }} ➔</span>
                     <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M14 5l7 7m0 0l-7 7m7-7H3"></path></svg>

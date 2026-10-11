@@ -1,6 +1,6 @@
 {% extends "admin/admin_base.html" %}
 
-{% block title %}Tổng Quan Dashboard{% endblock %}
+{% block title %}Dashboard & Traffic Overview{% endblock %}
 
 {% block body %}
 <div class="max-w-6xl mx-auto space-y-8">
@@ -8,15 +8,15 @@
     <!-- Top Header -->
     <div class="flex flex-wrap items-center justify-between gap-4">
         <div>
-            <h1 class="text-2xl sm:text-3xl font-black text-gray-900">Tổng Quan Hệ Thống</h1>
-            <p class="text-xs sm:text-sm text-gray-500">Quản trị nội dung và tối ưu hóa doanh thu quảng cáo</p>
+            <h1 class="text-2xl sm:text-3xl font-black text-gray-900">Dashboard &amp; Traffic Overview</h1>
+            <p class="text-xs sm:text-sm text-gray-500">Track reader clicks, next chapter retention (CTR) &amp; monetize ads</p>
         </div>
         <div class="flex items-center space-x-3">
             <a href="/admin/ads" class="inline-flex items-center space-x-2 bg-amber-500 hover:bg-amber-600 text-white text-xs font-bold px-4 py-2.5 rounded-xl shadow transition">
-                <span>Cấu Hình Quảng Cáo</span>
+                <span>Ad Management</span>
             </a>
             <a href="/admin/stories/new" class="inline-flex items-center space-x-2 bg-gray-900 hover:bg-black text-white text-xs font-bold px-4 py-2.5 rounded-xl shadow transition">
-                <span>+ Đăng Truyện Mới</span>
+                <span>+ Post New Story</span>
             </a>
         </div>
     </div>
@@ -25,7 +25,7 @@
     <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
         <div class="bg-white p-6 rounded-2xl border border-gray-200 shadow-sm flex items-center justify-between">
             <div>
-                <span class="text-xs font-bold uppercase tracking-wider text-gray-400">Tổng Số Truyện</span>
+                <span class="text-xs font-bold uppercase tracking-wider text-gray-400">Total Stories</span>
                 <p class="text-3xl font-black text-gray-900 mt-1">{{ total_stories }}</p>
             </div>
             <div class="w-12 h-12 bg-amber-50 text-amber-600 rounded-2xl flex items-center justify-center font-bold text-xl">
@@ -35,7 +35,7 @@
 
         <div class="bg-white p-6 rounded-2xl border border-gray-200 shadow-sm flex items-center justify-between">
             <div>
-                <span class="text-xs font-bold uppercase tracking-wider text-gray-400">Tổng Số Phần / Chương</span>
+                <span class="text-xs font-bold uppercase tracking-wider text-gray-400">Total Chapters</span>
                 <p class="text-3xl font-black text-gray-900 mt-1">{{ total_parts }}</p>
             </div>
             <div class="w-12 h-12 bg-blue-50 text-blue-600 rounded-2xl flex items-center justify-center font-bold text-xl">
@@ -45,8 +45,8 @@
 
         <div class="bg-white p-6 rounded-2xl border border-gray-200 shadow-sm flex items-center justify-between">
             <div>
-                <span class="text-xs font-bold uppercase tracking-wider text-gray-400">Tổng Lượt Đọc (Views)</span>
-                <p class="text-3xl font-black text-gray-900 mt-1">{{ total_views }}</p>
+                <span class="text-xs font-bold uppercase tracking-wider text-gray-400">Total Page Views</span>
+                <p class="text-3xl font-black text-emerald-600 mt-1">{{ total_views }}</p>
             </div>
             <div class="w-12 h-12 bg-emerald-50 text-emerald-600 rounded-2xl flex items-center justify-center font-bold text-xl">
                 👁️
@@ -55,45 +55,63 @@
 
         <div class="bg-white p-6 rounded-2xl border border-gray-200 shadow-sm flex items-center justify-between">
             <div>
-                <span class="text-xs font-bold uppercase tracking-wider text-gray-400">Vị Trí Ads Đang Chạy</span>
-                <p class="text-3xl font-black text-amber-600 mt-1">{{ active_ads }} / 6</p>
+                <span class="text-xs font-bold uppercase tracking-wider text-gray-400">Next Part Clicks</span>
+                <p class="text-3xl font-black text-orange-600 mt-1">{{ total_next_clicks }}</p>
             </div>
-            <div class="w-12 h-12 bg-amber-50 text-amber-600 rounded-2xl flex items-center justify-center font-bold text-xl">
-                💰
+            <div class="w-12 h-12 bg-orange-50 text-orange-600 rounded-2xl flex items-center justify-center font-bold text-xl">
+                🔥
             </div>
         </div>
     </div>
 
-    <!-- Quick Tip For Monetization -->
-    <div class="bg-gradient-to-r from-amber-500 to-orange-500 text-white rounded-2xl p-6 shadow-md">
-        <div class="flex items-start space-x-4">
-            <span class="text-2xl">💡</span>
+    <!-- Referrers Box & Monetization Strategy -->
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <div class="md:col-span-2 bg-gradient-to-r from-amber-500 to-orange-500 text-white rounded-2xl p-6 shadow-md flex items-start space-x-4">
+            <span class="text-3xl">💡</span>
             <div>
-                <h3 class="font-black text-base mb-1">Bí quyết tăng doanh thu quảng cáo (RPM / CTR):</h3>
+                <h3 class="font-black text-base mb-1">Viral Traffic &amp; RPM Strategy (Same as tinyhousewow):</h3>
                 <p class="text-xs sm:text-sm text-amber-100 leading-relaxed">
-                    Chia câu chuyện thành 2 - 3 phần (Phần 1, Phần 2, Phần 3). Khi độc giả đọc hết Phần 1 và bấm nút 
-                    <strong>"ĐỌC TIẾP PHẦN 2"</strong>, số lượt xem trang (Pageviews) và số lần hiển thị quảng cáo sẽ nhân đôi, nhân ba!
+                    Hook readers with Part 1 on Facebook Reels / Posts. When readers reach the end and click 
+                    <strong>"CONTINUE TO PART 2 ➔"</strong>, your ad viewability doubles and your RPM multiplies! Every reader converts into 2 to 3 pageviews.
                 </p>
             </div>
         </div>
+
+        <div class="bg-white rounded-2xl border border-gray-200 shadow-sm p-6">
+            <h4 class="font-bold text-xs uppercase tracking-wider text-gray-500 mb-3">Top Traffic Channels</h4>
+            {% if top_referrers %}
+            <div class="space-y-2">
+                {% for ref in top_referrers %}
+                <div class="flex items-center justify-between text-xs">
+                    <span class="font-semibold text-gray-800">{{ ref.referrer }}</span>
+                    <span class="font-bold text-amber-600">{{ ref.count }} visits</span>
+                </div>
+                {% endfor %}
+            </div>
+            {% else %}
+            <p class="text-xs text-gray-400 py-3">Direct visits or referral logs starting...</p>
+            {% endif %}
+        </div>
     </div>
 
-    <!-- Recent Stories Table -->
+    <!-- Recent Stories Table with Traffic -->
     <div class="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
         <div class="p-6 border-b border-gray-100 flex items-center justify-between">
-            <h3 class="font-bold text-base text-gray-900">Danh Sách Truyện Gần Đây</h3>
-            <a href="/admin/stories" class="text-xs font-bold text-amber-600 hover:underline">Xem tất cả ➔</a>
+            <h3 class="font-bold text-base text-gray-900">Stories Performance &amp; Click-Through</h3>
+            <a href="/admin/stories" class="text-xs font-bold text-amber-600 hover:underline">View All Stories ➔</a>
         </div>
 
         <div class="overflow-x-auto">
             <table class="w-full text-left text-xs">
                 <thead class="bg-gray-50 text-gray-500 uppercase tracking-wider border-b border-gray-200">
                     <tr>
-                        <th class="px-6 py-3 font-semibold">Tên Truyện</th>
-                        <th class="px-6 py-3 font-semibold">Chuyên Mục</th>
-                        <th class="px-6 py-3 font-semibold text-center">Số Phần</th>
-                        <th class="px-6 py-3 font-semibold text-center">Lượt Xem</th>
-                        <th class="px-6 py-3 font-semibold text-right">Thao Tác</th>
+                        <th class="px-6 py-3 font-semibold">Story Title</th>
+                        <th class="px-6 py-3 font-semibold">Category</th>
+                        <th class="px-6 py-3 font-semibold text-center">Parts</th>
+                        <th class="px-6 py-3 font-semibold text-center">Views</th>
+                        <th class="px-6 py-3 font-semibold text-center">Next Clicks</th>
+                        <th class="px-6 py-3 font-semibold text-center">Retention (CTR)</th>
+                        <th class="px-6 py-3 font-semibold text-right">Actions</th>
                     </tr>
                 </thead>
                 <tbody class="divide-y divide-gray-100">
@@ -105,20 +123,30 @@
                             </a>
                         </td>
                         <td class="px-6 py-4 text-gray-600">
-                            {{ s.category_name or 'Chưa phân loại' }}
+                            {{ s.category_name or 'Uncategorized' }}
                         </td>
                         <td class="px-6 py-4 text-center">
-                            <span class="bg-amber-100 text-amber-800 px-2 py-0.5 rounded font-bold">
-                                {{ s.part_count }} Phần
+                            <span class="bg-amber-100 text-amber-800 px-2.5 py-0.5 rounded font-bold">
+                                {{ s.part_count }} Parts
                             </span>
                         </td>
-                        <td class="px-6 py-4 text-center text-gray-500">
+                        <td class="px-6 py-4 text-center font-bold text-gray-800">
                             {{ s.views }}
                         </td>
+                        <td class="px-6 py-4 text-center font-bold text-orange-600">
+                            {{ s.next_clicks or 0 }}
+                        </td>
+                        <td class="px-6 py-4 text-center">
+                            <span class="bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded font-bold">
+                                {{ s.retention_rate }}
+                            </span>
+                        </td>
                         <td class="px-6 py-4 text-right space-x-2">
-                            <a href="/admin/stories/{{ s.id }}/parts" class="text-blue-600 font-semibold hover:underline">Quản lý các phần</a>
+                            <a href="/admin/stories/{{ s.id }}/traffic" class="text-emerald-600 font-bold hover:underline">📊 Stats</a>
                             <span class="text-gray-300">|</span>
-                            <a href="/admin/stories/{{ s.id }}/edit" class="text-amber-600 font-semibold hover:underline">Sửa</a>
+                            <a href="/admin/stories/{{ s.id }}/parts" class="text-blue-600 font-semibold hover:underline">Parts</a>
+                            <span class="text-gray-300">|</span>
+                            <a href="/admin/stories/{{ s.id }}/edit" class="text-amber-600 font-semibold hover:underline">Edit</a>
                         </td>
                     </tr>
                     {% endfor %}

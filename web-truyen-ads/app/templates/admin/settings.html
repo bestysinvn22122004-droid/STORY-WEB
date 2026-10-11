@@ -1,18 +1,18 @@
 {% extends "admin/admin_base.html" %}
 
-{% block title %}Cài Đặt Hệ Thống{% endblock %}
+{% block title %}System Settings{% endblock %}
 
 {% block body %}
 <div class="max-w-4xl mx-auto space-y-6">
     <div>
-        <h1 class="text-2xl font-black text-gray-900">Cài Đặt Hệ Thống</h1>
-        <p class="text-xs text-gray-500">Tùy biến tên website, khẩu hiệu, SEO và mật khẩu quản trị</p>
+        <h1 class="text-2xl font-black text-gray-900">System &amp; Security Settings</h1>
+        <p class="text-xs text-gray-500">Configure website name, SEO branding, and admin login credentials</p>
     </div>
 
     {% if saved %}
     <div class="p-4 bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-2xl flex items-center space-x-3 text-xs font-semibold">
         <svg class="w-5 h-5 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>
-        <span>Đã lưu thành công cài đặt hệ thống!</span>
+        <span>Settings successfully updated!</span>
     </div>
     {% endif %}
 
@@ -25,56 +25,62 @@
     <form action="/admin/settings" method="post" class="bg-white rounded-2xl border border-gray-200 shadow-sm p-6 sm:p-8 space-y-6">
         
         <div class="space-y-4">
-            <h3 class="font-bold text-sm text-gray-900 pb-2 border-b border-gray-100 uppercase tracking-wider">Thông Tin Website</h3>
+            <h3 class="font-bold text-sm text-gray-900 pb-2 border-b border-gray-100 uppercase tracking-wider">Website Information</h3>
             
             <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
-                    <label class="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-1">Tên Website *</label>
-                    <input type="text" name="site_name" required value="{{ settings.get('site_name', 'Truyện Hay 24h') }}"
-                           class="w-full px-3 py-2 bg-gray-50 border border-gray-300 rounded-xl text-xs font-bold focus:bg-white focus:border-amber-500 focus:outline-none">
+                    <label class="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-1">Site Title *</label>
+                    <input type="text" name="site_name" required value="{{ settings.get('site_name', 'Heartfelt Stories') }}"
+                           class="w-full px-3 py-2.5 bg-gray-50 border border-gray-300 rounded-xl text-xs font-bold focus:bg-white focus:border-amber-500 focus:outline-none">
                 </div>
 
                 <div>
-                    <label class="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-1">Email Liên Hệ</label>
-                    <input type="email" name="contact_email" value="{{ settings.get('contact_email', 'contact@yourdomain.com') }}"
-                           class="w-full px-3 py-2 bg-gray-50 border border-gray-300 rounded-xl text-xs focus:bg-white focus:border-amber-500 focus:outline-none">
+                    <label class="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-1">Contact Email</label>
+                    <input type="email" name="contact_email" value="{{ settings.get('contact_email', 'contact@story.id.vn') }}"
+                           class="w-full px-3 py-2.5 bg-gray-50 border border-gray-300 rounded-xl text-xs focus:bg-white focus:border-amber-500 focus:outline-none">
                 </div>
             </div>
 
             <div>
-                <label class="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-1">Khẩu Hiệu / Tagline</label>
-                <input type="text" name="tagline" value="{{ settings.get('tagline', '') }}" placeholder="Kho Truyện Cảm Động & Bài Học Cuộc Sống Đầy Ý Nghĩa"
-                       class="w-full px-3 py-2 bg-gray-50 border border-gray-300 rounded-xl text-xs focus:bg-white focus:border-amber-500 focus:outline-none">
+                <label class="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-1">Tagline / Slogan</label>
+                <input type="text" name="tagline" value="{{ settings.get('tagline', '') }}" placeholder="Touching Life Stories, Family Drama & Inspiring Lessons"
+                       class="w-full px-3 py-2.5 bg-gray-50 border border-gray-300 rounded-xl text-xs focus:bg-white focus:border-amber-500 focus:outline-none">
             </div>
 
             <div>
-                <label class="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-1">Mô Tả SEO (Meta Description)</label>
+                <label class="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-1">SEO Description (Meta Description)</label>
                 <textarea name="meta_description" rows="2" class="w-full px-3 py-2 bg-gray-50 border border-gray-300 rounded-xl text-xs focus:bg-white focus:border-amber-500 focus:outline-none">{{ settings.get('meta_description', '') }}</textarea>
             </div>
         </div>
 
         <div class="space-y-4 pt-4 border-t border-gray-100">
-            <h3 class="font-bold text-sm text-gray-900 pb-2 border-b border-gray-100 uppercase tracking-wider">Đổi Mật Khẩu Quản Trị (Admin)</h3>
-            <p class="text-xs text-gray-500">Bỏ trống 2 ô dưới nếu bạn không muốn thay đổi mật khẩu.</p>
+            <h3 class="font-bold text-sm text-gray-900 pb-2 border-b border-gray-100 uppercase tracking-wider">Admin Login Credentials</h3>
+            <p class="text-xs text-gray-500">Change your login username and password below.</p>
 
-            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+                <label class="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-1">Admin Username (Tài khoản đăng nhập)</label>
+                <input type="text" name="admin_username" value="{{ settings.get('admin_username', 'admin') }}" required
+                       class="w-full sm:w-80 px-3 py-2.5 bg-gray-50 border border-gray-300 rounded-xl text-xs font-bold focus:bg-white focus:border-amber-500 focus:outline-none">
+            </div>
+
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2">
                 <div>
-                    <label class="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-1">Mật khẩu hiện tại</label>
-                    <input type="password" name="current_password" placeholder="Mặc định: admin123"
-                           class="w-full px-3 py-2 bg-gray-50 border border-gray-300 rounded-xl text-xs focus:bg-white focus:border-amber-500 focus:outline-none">
+                    <label class="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-1">Current Password (Mật khẩu hiện tại)</label>
+                    <input type="password" name="current_password" placeholder="Leave empty if not changing password"
+                           class="w-full px-3 py-2.5 bg-gray-50 border border-gray-300 rounded-xl text-xs focus:bg-white focus:border-amber-500 focus:outline-none">
                 </div>
 
                 <div>
-                    <label class="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-1">Mật khẩu mới</label>
-                    <input type="password" name="new_password" placeholder="Nhập mật khẩu mới muốn đổi"
-                           class="w-full px-3 py-2 bg-gray-50 border border-gray-300 rounded-xl text-xs focus:bg-white focus:border-amber-500 focus:outline-none">
+                    <label class="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-1">New Password (Mật khẩu mới)</label>
+                    <input type="password" name="new_password" placeholder="Enter new password"
+                           class="w-full px-3 py-2.5 bg-gray-50 border border-gray-300 rounded-xl text-xs focus:bg-white focus:border-amber-500 focus:outline-none">
                 </div>
             </div>
         </div>
 
         <div class="text-right pt-4 border-t border-gray-100">
-            <button type="submit" class="bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold px-6 py-2.5 rounded-xl shadow transition">
-                Lưu Toàn Bộ Cài Đặt
+            <button type="submit" class="bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold px-6 py-3 rounded-xl shadow transition">
+                Save All Settings
             </button>
         </div>
     </form>
