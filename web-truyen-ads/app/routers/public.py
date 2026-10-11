@@ -51,16 +51,16 @@ def inject_in_content_ads(content: str, in_content_ad: dict, interval: int = 3, 
     if ad_code:
         ad_html = f"""
         <div class="my-8 p-3 bg-gray-50 dark:bg-gray-800/60 rounded-xl border border-dashed border-gray-300 dark:border-gray-700 text-center flex flex-col items-center justify-center min-h-[120px]">
-            <span class="text-[10px] uppercase tracking-wider text-gray-400 dark:text-gray-500 mb-2 font-mono">Quảng cáo tài trợ</span>
+            <span class="text-[10px] uppercase tracking-wider text-gray-400 dark:text-gray-500 mb-2 font-mono">Advertisement</span>
             <div class="w-full flex justify-center overflow-hidden">{ad_code}</div>
         </div>
         """
     elif show_placeholders:
         ad_html = """
         <div class="my-8 p-4 bg-gradient-to-r from-amber-50 to-orange-50 dark:from-gray-800 dark:to-gray-800/80 rounded-xl border border-dashed border-amber-300 dark:border-amber-700/50 text-center flex flex-col items-center justify-center min-h-[130px] transition-all">
-            <span class="text-[10px] uppercase tracking-wider text-amber-700/70 dark:text-amber-400 font-semibold mb-1">Vị Trí Quảng Cáo Tự Động (In-Content Ad)</span>
-            <p class="text-xs text-gray-600 dark:text-gray-300 max-w-md">Vị trí chèn tự động giữa các đoạn văn (Google AdSense, Adsterra, Banner 300x250 hoặc Responsive).</p>
-            <span class="mt-2 text-[11px] text-amber-600 dark:text-amber-400 bg-white dark:bg-gray-700 px-2 py-0.5 rounded border border-amber-200 dark:border-gray-600">CTR cao nhất khi độc giả đang say sưa đọc truyện</span>
+            <span class="text-[10px] uppercase tracking-wider text-amber-700/70 dark:text-amber-400 font-semibold mb-1">In-Content Sponsored Ad Slot</span>
+            <p class="text-xs text-gray-600 dark:text-gray-300 max-w-md">Auto-injected between paragraphs (Google AdSense, Adsterra, Responsive Banner).</p>
+            <span class="mt-2 text-[11px] text-amber-600 dark:text-amber-400 bg-white dark:bg-gray-700 px-2 py-0.5 rounded border border-amber-200 dark:border-gray-600">Prime CTR location while readers enjoy the story</span>
         </div>
         """
     else:

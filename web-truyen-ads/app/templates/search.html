@@ -4,15 +4,15 @@
 <div class="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
     <div class="mb-8">
         <h1 class="text-2xl sm:text-3xl font-black text-gray-900 dark:text-white mb-2">
-            Kết quả tìm kiếm cho: <span class="text-amber-600">"{{ query }}"</span>
+            Search Results for: <span class="text-amber-600">"{{ query }}"</span>
         </h1>
-        <p class="text-xs text-gray-500">Tìm thấy {{ stories | length }} kết quả phù hợp</p>
+        <p class="text-xs text-gray-500">Found {{ stories | length }} matching stories</p>
     </div>
 
     <!-- Search input -->
     <div class="max-w-xl mb-8">
         <form action="/search" method="get" class="relative">
-            <input type="text" name="q" placeholder="Nhập từ khóa tìm kiếm..." value="{{ query }}"
+            <input type="text" name="q" placeholder="Enter keywords to search..." value="{{ query }}"
                    class="w-full bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 rounded-xl pl-10 pr-4 py-3 text-sm border border-gray-300 dark:border-gray-700 focus:border-amber-500 focus:outline-none shadow-sm">
             <svg class="w-5 h-5 text-gray-400 absolute left-3 top-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
         </form>
@@ -27,7 +27,7 @@
                      alt="{{ story.title }}" 
                      class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500">
                 <span class="absolute bottom-3 right-3 bg-amber-600 text-white text-[11px] font-bold px-2 py-0.5 rounded shadow">
-                    {{ story.part_count }} Phần
+                    {{ story.part_count }} Parts
                 </span>
             </a>
 
@@ -42,9 +42,9 @@
                 </div>
 
                 <div class="flex items-center justify-between pt-3 border-t border-gray-100 dark:border-gray-800 text-[11px] text-gray-400">
-                    <span>⏱️ {{ story.reading_time or 4 }} phút</span>
+                    <span>⏱️ {{ story.reading_time or 4 }} min read</span>
                     <span class="text-amber-600 font-semibold group-hover:translate-x-1 transition-transform inline-flex items-center">
-                        Đọc ngay ➔
+                        Read now ➔
                     </span>
                 </div>
             </div>
@@ -53,8 +53,8 @@
     </div>
     {% else %}
     <div class="text-center py-16 bg-white dark:bg-gray-900 rounded-3xl border border-gray-200 dark:border-gray-800">
-        <p class="text-gray-500 text-sm">Không tìm thấy câu chuyện nào khớp với từ khóa "{{ query }}".</p>
-        <a href="/" class="mt-4 inline-block text-xs text-amber-600 font-bold hover:underline">Quay về trang chủ</a>
+        <p class="text-gray-500 text-sm">No stories found matching "{{ query }}".</p>
+        <a href="/" class="mt-4 inline-block text-xs text-amber-600 font-bold hover:underline">Return to Home</a>
     </div>
     {% endif %}
 </div>

@@ -26,7 +26,17 @@ def on_startup():
 
 @app.exception_handler(404)
 async def custom_404_handler(request: Request, exc):
-    return templates.TemplateResponse(request=request, name="404.html", context={}, status_code=404)
+    from .routers.public import get_site_settings, get_ads_config, get_categories
+    return templates.TemplateResponse(
+        request=request,
+        name="404.html",
+        context={
+            "settings": get_site_settings(),
+            "ads": get_ads_config(),
+            "categories": get_categories()
+        },
+        status_code=404
+    )
 
 
 if __name__ == "__main__":

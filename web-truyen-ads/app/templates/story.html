@@ -5,7 +5,7 @@
 
     <!-- Breadcrumbs -->
     <nav class="flex items-center space-x-2 text-xs text-gray-400 mb-4 overflow-x-auto whitespace-nowrap">
-        <a href="/" class="hover:text-amber-600 transition">Trang chủ</a>
+        <a href="/" class="hover:text-amber-600 transition">Home</a>
         <span>/</span>
         {% if story.category_slug %}
         <a href="/category/{{ story.category_slug }}" class="hover:text-amber-600 transition">{{ story.category_name }}</a>
@@ -24,7 +24,7 @@
         <div class="flex flex-wrap items-center justify-between gap-3 mb-4">
             <div class="flex items-center space-x-2">
                 <span class="bg-amber-600 text-white text-xs font-black px-3 py-1 rounded-full uppercase tracking-wider shadow-sm">
-                    Phần {{ current_part.part_number }} / {{ all_parts | length }}
+                    Part {{ current_part.part_number }} of {{ all_parts | length }}
                 </span>
                 {% if story.category_name %}
                 <a href="/category/{{ story.category_slug }}" class="text-xs font-semibold text-amber-700 dark:text-amber-400 hover:underline">
@@ -35,9 +35,9 @@
 
             <!-- Reading Stats -->
             <div class="flex items-center space-x-3 text-xs text-gray-400">
-                <span>⏱️ ~{{ story.reading_time or 4 }} phút đọc</span>
+                <span>⏱️ ~{{ story.reading_time or 4 }} min read</span>
                 <span>•</span>
-                <span>👁️ {{ current_part.views }} lượt đọc</span>
+                <span>👁️ {{ current_part.views }} views</span>
             </div>
         </div>
 
@@ -55,7 +55,7 @@
             
             <!-- Font Size -->
             <div class="flex items-center space-x-1.5">
-                <span class="text-gray-500 font-semibold mr-1">Cỡ chữ:</span>
+                <span class="text-gray-500 font-semibold mr-1">Text size:</span>
                 <button type="button" onclick="setFontSize('text-base')" data-size="text-base" class="font-size-btn px-2.5 py-1 rounded-lg border border-gray-300 dark:border-gray-600 font-bold hover:bg-gray-200 dark:hover:bg-gray-700 transition">A-</button>
                 <button type="button" onclick="setFontSize('text-lg')" data-size="text-lg" class="font-size-btn px-2.5 py-1 rounded-lg border border-gray-300 dark:border-gray-600 font-bold hover:bg-gray-200 dark:hover:bg-gray-700 transition">A</button>
                 <button type="button" onclick="setFontSize('text-xl')" data-size="text-xl" class="font-size-btn px-2.5 py-1 rounded-lg border border-gray-300 dark:border-gray-600 font-bold hover:bg-gray-200 dark:hover:bg-gray-700 transition">A+</button>
@@ -64,16 +64,16 @@
 
             <!-- Reading Theme Mode -->
             <div class="flex items-center space-x-2">
-                <span class="text-gray-500 font-semibold mr-1">Chế độ đọc:</span>
-                <button type="button" onclick="setStoryTheme('light')" data-theme="light" class="theme-btn w-6 h-6 rounded-full bg-white border-2 border-gray-300 shadow-sm" title="Nền Sáng"></button>
-                <button type="button" onclick="setStoryTheme('sepia')" data-theme="sepia" class="theme-btn w-6 h-6 rounded-full bg-[#fbf0d9] border-2 border-[#d9c49a] shadow-sm" title="Nền Sepia dịu mắt"></button>
-                <button type="button" onclick="setStoryTheme('dark')" data-theme="dark" class="theme-btn w-6 h-6 rounded-full bg-gray-900 border-2 border-gray-700 shadow-sm" title="Nền Tối ban đêm"></button>
+                <span class="text-gray-500 font-semibold mr-1">Theme:</span>
+                <button type="button" onclick="setStoryTheme('light')" data-theme="light" class="theme-btn w-6 h-6 rounded-full bg-white border-2 border-gray-300 shadow-sm" title="Light Paper"></button>
+                <button type="button" onclick="setStoryTheme('sepia')" data-theme="sepia" class="theme-btn w-6 h-6 rounded-full bg-[#fbf0d9] border-2 border-[#d9c49a] shadow-sm" title="Warm Sepia"></button>
+                <button type="button" onclick="setStoryTheme('dark')" data-theme="dark" class="theme-btn w-6 h-6 rounded-full bg-gray-900 border-2 border-gray-700 shadow-sm" title="Night Mode"></button>
             </div>
 
             <!-- Font Style (Serif vs Sans) -->
             <div class="flex items-center space-x-1">
-                <button type="button" onclick="setStoryFontFamily('font-serif')" class="px-2.5 py-1 rounded-lg border border-gray-300 dark:border-gray-600 font-serif hover:bg-gray-200 dark:hover:bg-gray-700 transition">Font Sách</button>
-                <button type="button" onclick="setStoryFontFamily('font-sans')" class="px-2.5 py-1 rounded-lg border border-gray-300 dark:border-gray-600 font-sans hover:bg-gray-200 dark:hover:bg-gray-700 transition">Hiện đại</button>
+                <button type="button" onclick="setStoryFontFamily('font-serif')" class="px-2.5 py-1 rounded-lg border border-gray-300 dark:border-gray-600 font-serif hover:bg-gray-200 dark:hover:bg-gray-700 transition">Book Font</button>
+                <button type="button" onclick="setStoryFontFamily('font-sans')" class="px-2.5 py-1 rounded-lg border border-gray-300 dark:border-gray-600 font-sans hover:bg-gray-200 dark:hover:bg-gray-700 transition">Modern</button>
             </div>
         </div>
 
@@ -92,13 +92,13 @@
         <!-- Ad Placement BEFORE the Next Button (Extremely High CTR!) -->
         {{ ads_helper.render_ad(ads.get('before_next_button'), "w-full my-8", settings) }}
 
-        <!-- Story Navigation & Viral Next Part Action -->
+        <!-- Story Navigation & Viral Next Part Action (Same hook as tinyhousewow) -->
         <div class="my-10 p-6 bg-gradient-to-br from-amber-50 to-orange-50 dark:from-gray-800 dark:to-gray-800/80 rounded-2xl border-2 border-amber-300/70 dark:border-amber-700/50 shadow-md">
             
             {% if next_part %}
             <div class="text-center">
                 <span class="inline-block text-xs font-bold uppercase tracking-wider text-amber-800 dark:text-amber-400 mb-2">
-                    🔥 Hồi hộp kịch tính ở phần tiếp theo!
+                    🔥 The story continues in the next chapter!
                 </span>
                 <h3 class="text-lg font-bold text-gray-900 dark:text-white mb-4">
                     {{ next_part.title }}
@@ -106,18 +106,18 @@
                 
                 <a href="/story/{{ story.slug }}/part-{{ next_part.part_number }}" 
                    class="inline-flex items-center justify-center space-x-3 w-full sm:w-auto px-8 py-4 rounded-2xl bg-gradient-to-r from-amber-600 via-orange-600 to-amber-700 hover:from-amber-700 hover:to-orange-800 text-white text-base sm:text-lg font-extrabold shadow-xl shadow-orange-600/30 hover:scale-[1.02] active:scale-95 transition-all animate-pulse">
-                    <span>ĐỌC TIẾP PHẦN {{ next_part.part_number }} NGAY</span>
+                    <span>CONTINUE TO PART {{ next_part.part_number }} ➔</span>
                     <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M14 5l7 7m0 0l-7 7m7-7H3"></path></svg>
                 </a>
             </div>
             {% else %}
             <div class="text-center py-4">
-                <span class="text-3xl mb-2 block">🎉</span>
+                <span class="text-3xl mb-2 block">✨</span>
                 <h3 class="text-lg font-bold text-gray-900 dark:text-white mb-2">
-                    Bạn đã đọc hết các phần của câu chuyện này!
+                    You have finished reading this story!
                 </h3>
                 <p class="text-xs text-gray-600 dark:text-gray-300 max-w-md mx-auto">
-                    Nếu bạn thấy câu chuyện ý nghĩa, hãy bấm chia sẻ để lan tỏa thông điệp tốt đẹp đến bạn bè và người thân.
+                    If this story touched your heart, please share it with your friends and loved ones.
                 </p>
             </div>
             {% endif %}
@@ -127,17 +127,17 @@
                 {% if prev_part %}
                 <a href="/story/{{ story.slug }}/part-{{ prev_part.part_number }}" class="inline-flex items-center space-x-1 text-gray-600 dark:text-gray-300 hover:text-amber-600 transition">
                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path></svg>
-                    <span>Quay lại Phần {{ prev_part.part_number }}</span>
+                    <span>Previous Part {{ prev_part.part_number }}</span>
                 </a>
                 {% else %}
                 <div></div>
                 {% endif %}
 
-                <span class="text-gray-400">Phần {{ current_part.part_number }} / {{ all_parts | length }}</span>
+                <span class="text-gray-400">Part {{ current_part.part_number }} of {{ all_parts | length }}</span>
 
                 {% if next_part %}
                 <a href="/story/{{ story.slug }}/part-{{ next_part.part_number }}" class="inline-flex items-center space-x-1 text-amber-700 dark:text-amber-400 hover:underline">
-                    <span>Phần {{ next_part.part_number }}</span>
+                    <span>Part {{ next_part.part_number }}</span>
                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 5l7 7m0 0l-7 7m7-7H3"></path></svg>
                 </a>
                 {% else %}
@@ -153,14 +153,14 @@
         {% if all_parts | length > 1 %}
         <div class="my-8 p-5 bg-stone-50 dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700">
             <h4 class="text-xs font-bold uppercase tracking-wider text-gray-500 mb-3">
-                Danh Sách Các Phần Của Truyện
+                All Chapters & Parts
             </h4>
             <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
                 {% for p in all_parts %}
                 <a href="/story/{{ story.slug }}/part-{{ p.part_number }}" 
                    class="p-2.5 rounded-xl text-xs flex items-center justify-between transition {{ 'bg-amber-600 text-white font-bold shadow' if p.part_number == current_part.part_number else 'bg-white dark:bg-gray-900 text-gray-700 dark:text-gray-300 hover:bg-amber-50 dark:hover:bg-gray-700' }}">
                     <span class="truncate">{{ p.title }}</span>
-                    <span class="text-[10px] opacity-75 ml-2 whitespace-nowrap">Phần {{ p.part_number }}</span>
+                    <span class="text-[10px] opacity-75 ml-2 whitespace-nowrap">Part {{ p.part_number }}</span>
                 </a>
                 {% endfor %}
             </div>
@@ -169,7 +169,7 @@
 
         <!-- Social Share Bar -->
         <div class="pt-6 border-t border-gray-100 dark:border-gray-800 flex flex-wrap items-center justify-between gap-4">
-            <span class="text-xs font-bold text-gray-700 dark:text-gray-300">Chia sẻ câu chuyện:</span>
+            <span class="text-xs font-bold text-gray-700 dark:text-gray-300">Share this story:</span>
             
             <div class="flex items-center space-x-2">
                 <!-- Facebook -->
@@ -181,13 +181,13 @@
                 <!-- Copy Link -->
                 <button type="button" onclick="copyStoryLink()" class="inline-flex items-center space-x-1.5 bg-gray-100 hover:bg-gray-200 dark:bg-gray-800 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-200 text-xs font-semibold px-3 py-1.5 rounded-lg transition">
                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"></path></svg>
-                    <span>Sao chép link</span>
+                    <span>Copy Link</span>
                 </button>
             </div>
         </div>
 
         <div id="copy-toast" class="hidden mt-3 p-2 bg-emerald-100 border border-emerald-300 text-emerald-800 text-xs rounded-lg text-center font-medium">
-            ✓ Đã sao chép liên kết truyện vào bộ nhớ tạm!
+            ✓ Story link copied to clipboard!
         </div>
     </article>
 
@@ -196,7 +196,7 @@
     <section class="mt-12">
         <h3 class="text-xl font-black text-gray-900 dark:text-white mb-6 flex items-center space-x-2">
             <span class="w-2.5 h-6 bg-amber-600 rounded-full inline-block"></span>
-            <span>Có Thể Bạn Sẽ Thích</span>
+            <span>You May Also Like</span>
         </h3>
 
         <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6">
@@ -211,7 +211,7 @@
                     <h4 class="text-xs font-bold text-gray-900 dark:text-white line-clamp-2 mb-2 group-hover:text-amber-600 transition leading-snug">
                         <a href="/story/{{ r_story.slug }}/part-1">{{ r_story.title }}</a>
                     </h4>
-                    <span class="text-[10px] text-gray-400">⏱️ {{ r_story.reading_time or 4 }} phút • {{ r_story.part_count }} phần</span>
+                    <span class="text-[10px] text-gray-400">⏱️ {{ r_story.reading_time or 4 }} min • {{ r_story.part_count }} parts</span>
                 </div>
             </article>
             {% endfor %}

@@ -5,7 +5,7 @@
 
     <!-- Category Header -->
     <div class="mb-8 p-8 rounded-3xl bg-gradient-to-r from-amber-600 to-orange-600 text-white shadow-md">
-        <span class="text-xs uppercase tracking-widest text-amber-200 font-bold block mb-2">Chuyên mục</span>
+        <span class="text-xs uppercase tracking-widest text-amber-200 font-bold block mb-2">Category</span>
         <h1 class="text-3xl sm:text-4xl font-black mb-3">{{ category.name }}</h1>
         <p class="text-sm sm:text-base text-amber-100 max-w-2xl">{{ category.description }}</p>
     </div>
@@ -23,7 +23,7 @@
                      alt="{{ story.title }}" 
                      class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500">
                 <span class="absolute bottom-3 right-3 bg-amber-600 text-white text-[11px] font-bold px-2 py-0.5 rounded shadow">
-                    {{ story.part_count }} Phần
+                    {{ story.part_count }} Parts
                 </span>
             </a>
 
@@ -38,9 +38,9 @@
                 </div>
 
                 <div class="flex items-center justify-between pt-3 border-t border-gray-100 dark:border-gray-800 text-[11px] text-gray-400">
-                    <span>⏱️ {{ story.reading_time or 4 }} phút</span>
+                    <span>⏱️ {{ story.reading_time or 4 }} min read</span>
                     <span class="text-amber-600 font-semibold group-hover:translate-x-1 transition-transform inline-flex items-center">
-                        Đọc ngay ➔
+                        Read now ➔
                     </span>
                 </div>
             </div>
@@ -49,8 +49,8 @@
     </div>
     {% else %}
     <div class="text-center py-16 bg-white dark:bg-gray-900 rounded-3xl border border-gray-200 dark:border-gray-800">
-        <p class="text-gray-500 text-sm">Chưa có câu chuyện nào trong chuyên mục này.</p>
-        <a href="/" class="mt-4 inline-block text-xs text-amber-600 font-bold hover:underline">Quay về trang chủ</a>
+        <p class="text-gray-500 text-sm">No stories found in this category yet.</p>
+        <a href="/" class="mt-4 inline-block text-xs text-amber-600 font-bold hover:underline">Return to Home</a>
     </div>
     {% endif %}
 </div>

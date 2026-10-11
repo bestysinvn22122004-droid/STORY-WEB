@@ -1,14 +1,14 @@
 {% import "partials/ad_slot.html" as ads_helper %}
 <!DOCTYPE html>
-<html lang="vi" class="scroll-smooth">
+<html lang="en" class="scroll-smooth">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{{ page_title or settings.get('site_name', 'Truyện Hay 24h') }}</title>
+    <title>{{ page_title or settings.get('site_name', 'Heartfelt Stories') }}</title>
     
-    <!-- SEO & OpenGraph Meta Tags -->
+    <!-- SEO & OpenGraph Meta Tags for US Social Media (Facebook, Twitter, Pinterest) -->
     <meta name="description" content="{{ (story and story.excerpt) or settings.get('meta_description', '') }}">
-    <meta property="og:title" content="{{ page_title or settings.get('site_name', 'Truyện Hay 24h') }}">
+    <meta property="og:title" content="{{ page_title or settings.get('site_name', 'Heartfelt Stories') }}">
     <meta property="og:description" content="{{ (story and story.excerpt) or settings.get('meta_description', '') }}">
     <meta property="og:type" content="article">
     <meta property="og:url" content="{{ canonical_url or request.url }}">
@@ -93,8 +93,8 @@
                             <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"></path></svg>
                         </div>
                         <div>
-                            <span class="text-xl font-black tracking-tight text-gray-900 dark:text-white">{{ settings.get('site_name', 'Truyện Hay 24h') }}</span>
-                            <span class="hidden sm:block text-[10px] text-amber-700 dark:text-amber-400 font-medium tracking-wide uppercase">Kho Truyện Cảm Động & Bài Học</span>
+                            <span class="text-xl font-black tracking-tight text-gray-900 dark:text-white">{{ settings.get('site_name', 'Heartfelt Stories') }}</span>
+                            <span class="hidden sm:block text-[10px] text-amber-700 dark:text-amber-400 font-medium tracking-wide uppercase">Inspiring Real Life Stories</span>
                         </div>
                     </a>
                 </div>
@@ -102,7 +102,7 @@
                 <!-- Search Bar -->
                 <div class="hidden md:flex flex-1 max-w-md mx-8">
                     <form action="/search" method="get" class="w-full relative">
-                        <input type="text" name="q" placeholder="Tìm kiếm truyện, nhân vật, bài học..." value="{{ query or '' }}"
+                        <input type="text" name="q" placeholder="Search stories, characters, lessons..." value="{{ query or '' }}"
                                class="w-full bg-gray-100 dark:bg-gray-800 text-gray-900 dark:text-gray-100 rounded-full pl-10 pr-4 py-2 text-sm border border-transparent focus:border-amber-500 focus:bg-white dark:focus:bg-gray-900 focus:outline-none transition">
                         <svg class="w-4 h-4 text-gray-400 absolute left-3.5 top-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
                     </form>
@@ -110,9 +110,9 @@
 
                 <!-- Navigation Links & Admin -->
                 <div class="flex items-center space-x-3">
-                    <a href="/" class="text-sm font-medium text-gray-700 dark:text-gray-300 hover:text-amber-600 dark:hover:text-amber-400 px-3 py-1.5 rounded-lg transition">Trang chủ</a>
+                    <a href="/" class="text-sm font-medium text-gray-700 dark:text-gray-300 hover:text-amber-600 dark:hover:text-amber-400 px-3 py-1.5 rounded-lg transition">Home</a>
                     <a href="/admin/login" class="hidden sm:inline-flex items-center text-xs font-semibold text-gray-500 hover:text-gray-800 dark:text-gray-400 dark:hover:text-white px-2.5 py-1.5 rounded-md border border-gray-200 dark:border-gray-700 transition">
-                        Quản trị (Admin)
+                        Admin Portal
                     </a>
                 </div>
             </div>
@@ -121,7 +121,7 @@
             {% if categories %}
             <nav class="flex items-center space-x-1 overflow-x-auto py-2 border-t border-gray-100 dark:border-gray-800 scrollbar-none text-xs whitespace-nowrap">
                 <a href="/" class="px-3 py-1.5 rounded-full font-medium transition {{ 'bg-amber-600 text-white' if not active_category else 'text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800' }}">
-                    Tất cả truyện
+                    All Stories
                 </a>
                 {% for cat in categories %}
                 <a href="/category/{{ cat.slug }}" class="px-3 py-1.5 rounded-full font-medium transition {{ 'bg-amber-600 text-white' if active_category == cat.slug else 'text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800' }}">
@@ -138,13 +138,13 @@
         {% block content %}{% endblock %}
     </main>
 
-    <!-- Sticky Bottom Anchor Ad (Extremely High CTR / AdSense standard) -->
+    <!-- Sticky Bottom Anchor Ad (Extremely High CTR / US AdSense standard) -->
     {% if ads.get('sticky_footer_ad') and ads.sticky_footer_ad.is_enabled %}
     <div id="sticky-bottom-ad" class="fixed bottom-0 left-0 right-0 z-40 bg-white/95 dark:bg-gray-900/95 border-t border-gray-300 dark:border-gray-700 shadow-2xl backdrop-blur-md py-2 px-4 transition-all">
         <div class="max-w-4xl mx-auto relative flex flex-col items-center justify-center">
             <!-- Close button -->
-            <button onclick="closeStickyAd()" title="Đóng quảng cáo" class="absolute -top-4 right-0 bg-gray-700 hover:bg-gray-900 text-white text-[10px] font-bold px-2 py-0.5 rounded-full shadow-md flex items-center space-x-1 cursor-pointer">
-                <span>✕ Đóng</span>
+            <button onclick="closeStickyAd()" title="Close Ad" class="absolute -top-4 right-0 bg-gray-700 hover:bg-gray-900 text-white text-[10px] font-bold px-2 py-0.5 rounded-full shadow-md flex items-center space-x-1 cursor-pointer">
+                <span>✕ Close</span>
             </button>
             
             {% if ads.sticky_footer_ad.ad_code and ads.sticky_footer_ad.ad_code.strip() %}
@@ -153,8 +153,8 @@
                 </div>
             {% elif settings.get('show_ad_placeholders', '1') == '1' %}
                 <div class="w-full py-2 px-3 bg-amber-50 dark:bg-gray-800 rounded-lg text-center border border-dashed border-amber-300 dark:border-amber-700">
-                    <span class="text-[10px] font-bold text-amber-800 dark:text-amber-400 uppercase">Banner Ghim Đáy Màn Hình (Sticky Footer Ad)</span>
-                    <span class="text-xs text-gray-600 dark:text-gray-300 block">Vị trí quảng cáo bám đáy màn hình có viewability 100% trên điện thoại & máy tính.</span>
+                    <span class="text-[10px] font-bold text-amber-800 dark:text-amber-400 uppercase">Sticky Footer Anchor Banner Ad</span>
+                    <span class="text-xs text-gray-600 dark:text-gray-300 block">Fixed to screen bottom on mobile & desktop with 100% viewability.</span>
                 </div>
             {% endif %}
         </div>
@@ -166,19 +166,19 @@
         <div class="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 grid grid-cols-1 md:grid-cols-4 gap-8 mb-8">
             <div class="md:col-span-2">
                 <div class="flex items-center space-x-2 mb-3">
-                    <div class="w-8 h-8 rounded-lg bg-amber-600 flex items-center justify-center text-white font-bold">T</div>
-                    <span class="text-lg font-bold text-gray-900 dark:text-white">{{ settings.get('site_name', 'Truyện Hay 24h') }}</span>
+                    <div class="w-8 h-8 rounded-lg bg-amber-600 flex items-center justify-center text-white font-bold">H</div>
+                    <span class="text-lg font-bold text-gray-900 dark:text-white">{{ settings.get('site_name', 'Heartfelt Stories') }}</span>
                 </div>
                 <p class="text-xs text-gray-500 dark:text-gray-400 leading-relaxed max-w-sm mb-4">
-                    {{ settings.get('tagline', 'Kho Truyện Cảm Động & Bài Học Cuộc Sống Đầy Ý Nghĩa') }}. Tất cả các câu chuyện được sưu tầm và biên tập mang lại giá trị nhân văn và phút giây thư giãn.
+                    {{ settings.get('tagline', 'Touching Life Stories, Family Drama & Inspiring Lessons') }}. All stories are curated to inspire hope, compassion, and emotional connection.
                 </p>
                 <div class="flex items-center space-x-2 text-xs text-amber-700 dark:text-amber-400">
-                    <span>Email liên hệ: {{ settings.get('contact_email', 'contact@yourdomain.com') }}</span>
+                    <span>Contact: {{ settings.get('contact_email', 'contact@story.id.vn') }}</span>
                 </div>
             </div>
 
             <div>
-                <h4 class="text-xs font-bold uppercase tracking-wider text-gray-900 dark:text-white mb-3">Chuyên mục nổi bật</h4>
+                <h4 class="text-xs font-bold uppercase tracking-wider text-gray-900 dark:text-white mb-3">Popular Categories</h4>
                 <ul class="space-y-1.5 text-xs">
                     {% for cat in categories[:5] %}
                     <li><a href="/category/{{ cat.slug }}" class="hover:text-amber-600 transition">{{ cat.name }}</a></li>
@@ -187,18 +187,18 @@
             </div>
 
             <div>
-                <h4 class="text-xs font-bold uppercase tracking-wider text-gray-900 dark:text-white mb-3">Thông tin & Quản trị</h4>
+                <h4 class="text-xs font-bold uppercase tracking-wider text-gray-900 dark:text-white mb-3">Information & Legal</h4>
                 <ul class="space-y-1.5 text-xs">
-                    <li><a href="/" class="hover:text-amber-600 transition">Trang chủ</a></li>
-                    <li><a href="/sitemap.xml" class="hover:text-amber-600 transition">Sitemap XML</a></li>
-                    <li><a href="/ads.txt" class="hover:text-amber-600 transition">Tệp ads.txt</a></li>
-                    <li><a href="/admin/dashboard" class="text-amber-600 font-semibold hover:underline">Vào Bảng Quản Trị Admin</a></li>
+                    <li><a href="/" class="hover:text-amber-600 transition">Home</a></li>
+                    <li><a href="/sitemap.xml" class="hover:text-amber-600 transition">XML Sitemap</a></li>
+                    <li><a href="/ads.txt" class="hover:text-amber-600 transition">ads.txt</a></li>
+                    <li><a href="/admin/dashboard" class="text-amber-600 font-semibold hover:underline">Admin Login</a></li>
                 </ul>
             </div>
         </div>
 
         <div class="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 border-t border-gray-100 dark:border-gray-800 pt-6 text-center text-xs text-gray-400">
-            © 2026 {{ settings.get('site_name', 'Truyện Hay 24h') }}. Tất cả quyền được bảo lưu.
+            © 2026 {{ settings.get('site_name', 'Heartfelt Stories') }}. All rights reserved.
         </div>
     </footer>
 
