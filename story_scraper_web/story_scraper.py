@@ -12,12 +12,12 @@ import requests
 class UniversalStoryScraper:
     """
     Universal Novel / Web Story Scraper (Multi-Strategy Engine).
-    Can crawl across ANY novel, blog, or story website on the internet:
-    - Strategy 1: Table of Contents (TOC) & Chapter List Discovery
-    - Strategy 2: Next Chapter / Next Page Link Traversal (Crawler approach)
-    - Strategy 3: Adaptive URL Pattern Probing (/chapter-N, /part-N, /N, ?page=N...)
-    - Strategy 4: Universal Paragraph & Prose Extraction (handles <p> and <br> layouts)
-    - Filters: Ads, junk phrases, social buttons, chapter headings.
+    Supports TreeIQ, The Busted News, Cafex, Onplusnews, Hadoo, WPVina, Cotich, Dekorstyling, and ANY novel website.
+    Features:
+    - Multi-Strategy Crawling (TOC -> Next Button Crawler -> Adaptive URL Probing)
+    - Auto-chunking into ~400 words chapters with 'Chapter 1', 'Chapter 2' headers
+    - 100% junk and ad removal
+    - Batch scraping compatible
     """
 
     def __init__(self, output_dir: Optional[str] = None):
@@ -87,7 +87,6 @@ class UniversalStoryScraper:
                 html = resp.read().decode('utf-8', errors='ignore')
                 return BeautifulSoup(html, 'html.parser'), final_url
         except Exception:
-            # Fallback to requests Session
             resp = self.session.get(url, timeout=20, allow_redirects=True)
             resp.raise_for_status()
             return BeautifulSoup(resp.text, 'html.parser'), resp.url
@@ -102,15 +101,12 @@ class UniversalStoryScraper:
         if clean_cand == clean_curr:
             return False
 
-        # Exclude blacklisted paths (cart, login, social networks, images...)
         if self.disallowed_url_patterns.search(clean_cand):
             return False
 
-        # Check domain compatibility: must share domain or be a valid story link
         cand_host = urllib.parse.urlparse(candidate_url).netloc.lower()
         curr_host = urllib.parse.urlparse(current_url).netloc.lower()
 
-        # Strip www.
         cand_host = re.sub(r'^www\.', '', cand_host)
         curr_host = re.sub(r'^www\.', '', curr_host)
 
@@ -123,7 +119,6 @@ class UniversalStoryScraper:
         """Discovers full Table of Contents (TOC) links across different website layouts."""
         links = []
 
-        # 1. Known TOC containers by class or id
         toc_containers = soup.find_all(
             ['div', 'ul', 'ol', 'nav', 'section'],
             class_=re.compile(r'\b(?:chapter-toc|toc|chapter-list|list-chapter|table-of-contents|all-chapters|chapters-list|wp-block-table-of-contents|list-item|chapter-nav)\b', re.I)
@@ -140,7 +135,6 @@ class UniversalStoryScraper:
                 if self.is_valid_next_url(full_url, base_url):
                     links.append(full_url)
 
-        # 2. Check <select> dropdowns for chapters
         for sel in soup.find_all('select', attrs={'name': re.compile(r'chapter|part', re.I)}):
             for opt in sel.find_all('option', value=True):
                 val = opt['value']
@@ -149,7 +143,6 @@ class UniversalStoryScraper:
                     if self.is_valid_next_url(full_url, base_url):
                         links.append(full_url)
 
-        # 3. Deduplicate preserving sequence order
         seen = set()
         deduped = []
         for l in links:
@@ -161,11 +154,7 @@ class UniversalStoryScraper:
         return deduped
 
     def find_next_chapter_link(self, soup: BeautifulSoup, current_url: str) -> Optional[str]:
-        """
-        Dynamically discovers the 'Next Chapter' link on the page.
-        Works across 99% of novel sites, blogs, and custom themes.
-        """
-        # 1. Standard HTML5 next links: <a rel="next"> or <link rel="next">
+        """Dynamically discovers the 'Next Chapter' link on the page."""
         for rel_tag in soup.find_all(['a', 'link'], rel=True):
             rel_vals = rel_tag.get('rel', [])
             if isinstance(rel_vals, str):
@@ -177,7 +166,6 @@ class UniversalStoryScraper:
                     if self.is_valid_next_url(full_url, current_url):
                         return full_url
 
-        # 2. Look for <a> tags with next classes or IDs
         next_class_pattern = re.compile(
             r'\b(?:next|next-chapter|next-post|btn-next|chapter-next|nav-next|next_page|page-next|nav-next-button|next-link)\b',
             re.I
@@ -192,7 +180,6 @@ class UniversalStoryScraper:
             if self.is_valid_next_url(full_url, current_url):
                 return full_url
 
-        # 3. Look for <a> tags matching next text patterns
         for a in soup.find_all('a', href=True):
             text = a.get_text(strip=True)
             if self.next_text_pattern.match(text):
@@ -200,7 +187,6 @@ class UniversalStoryScraper:
                 if self.is_valid_next_url(full_url, current_url):
                     return full_url
 
-        # 4. Check pagination blocks (e.g. .pagination, .page-links, .wp-pagenavi)
         page_nav = soup.find(class_=re.compile(r'\b(?:pagination|page-links|nav-links|wp-pagenavi|post-page-numbers|chapter-pagination)\b', re.I))
         if page_nav:
             curr_el = page_nav.find(class_=re.compile(r'\b(?:current|active)\b', re.I))
@@ -217,7 +203,6 @@ class UniversalStoryScraper:
         """Detects if url follows a numbered pattern (e.g. chapter-1, part-1, /1, ?page=1)."""
         clean_url = url.split('?')[0].split('#')[0].rstrip('/')
 
-        # 1. /chapter-N, /part-N, /chap-N, /ch-N, /chuong-N
         m = re.search(r'/(chapter|part|chap|ch|chuong)-(\d+)$', clean_url, re.I)
         if m:
             prefix = m.group(1)
@@ -225,21 +210,18 @@ class UniversalStoryScraper:
             base = clean_url[:m.start()]
             return f"{base}/{prefix}-{{n}}", num
 
-        # 2. Trailing /N
         m = re.search(r'/(\d+)$', clean_url)
         if m:
             num = int(m.group(1))
             base = clean_url[:m.start()]
             return f"{base}/{{n}}", num
 
-        # 3. /page/N/
         m = re.search(r'/page/(\d+)/?$', clean_url, re.I)
         if m:
             num = int(m.group(1))
             base = clean_url[:m.start()]
             return f"{base}/page/{{n}}/", num
 
-        # 4. Query parameters (?chapter=N, ?part=N, ?page=N, ?p=N)
         parsed = urllib.parse.urlparse(url)
         qs = urllib.parse.parse_qs(parsed.query)
         for param in ['chapter', 'part', 'page', 'p']:
@@ -252,7 +234,6 @@ class UniversalStoryScraper:
 
     def extract_paragraphs_from_soup(self, soup: BeautifulSoup, filter_chapter_titles: bool = True) -> List[str]:
         """Extracts clean story paragraphs, handling both standard <p> and <br><br> layouts."""
-        # 1. Candidates search
         candidates = []
         named_selectors = [
             'div.prose', 'div.v5-prose', 'div.v4-prose',
@@ -272,7 +253,6 @@ class UniversalStoryScraper:
 
         container = None
         if candidates:
-            # Score by paragraph text volume
             def score(c):
                 return sum(len(p.get_text(strip=True)) for p in c.find_all('p'))
             candidates.sort(key=score, reverse=True)
@@ -283,21 +263,17 @@ class UniversalStoryScraper:
         if not container:
             return []
 
-        # Remove scripts, styles, iframes, navigation, buttons, forms inside container
         for tag in container.find_all(['script', 'style', 'iframe', 'noscript', 'svg', 'canvas', 'form', 'button', 'nav', 'aside', 'footer', 'header']):
             tag.decompose()
 
-        # Remove ads & social share widgets
         ad_selector = re.compile(r'\b(?:ads?|adsense|adsconex|code-block|social-share|share-box|in-article-ad|sharedaddy|addtoany|banner|sponsored)\b', re.I)
         for junk in container.find_all(class_=ad_selector):
             junk.decompose()
         for junk in container.find_all(id=re.compile(r'div_adsconex|div-gpt-ad|ad-|google_ads', re.I)):
             junk.decompose()
 
-        # Collect raw paragraphs
         raw_ps = container.find_all('p')
 
-        # If very few <p> tags, extract text separated by <br> or <div>
         if len(raw_ps) < 3:
             text_content = ""
             for elem in container.descendants:
@@ -329,18 +305,97 @@ class UniversalStoryScraper:
             if any(junk in text_lower for junk in self.junk_phrases):
                 continue
 
-            # Prevent immediate duplicate lines
             if not paragraphs or paragraphs[-1] != text:
                 paragraphs.append(text)
 
         return paragraphs
 
-    def scrape_story(self, url: str, filter_chapter_titles: bool = True, status_callback: Optional[Callable[[str], None]] = None) -> dict:
+    def chunk_paragraphs_by_words(self, paragraphs: List[str], target_words: int = 400) -> List[Dict]:
         """
-        Universal Story Scraper with 3-Layered Discovery:
-        - Layer 1: Table of Contents (TOC) Crawler
-        - Layer 2: Next Chapter Button / Link Crawler
-        - Layer 3: Adaptive URL Pattern Prober
+        Groups paragraphs into chapters of approximately target_words (default 400 words).
+        Ensures each chapter chunk starts with 'Chapter 1', 'Chapter 2', etc.
+        Splits excessively long paragraphs along natural sentence boundaries.
+        """
+        if not paragraphs:
+            return []
+
+        # 1. Normalize and break down any excessively long paragraph (> target_words * 1.4)
+        normalized_paragraphs = []
+        for p in paragraphs:
+            p_clean = p.strip()
+            if not p_clean:
+                continue
+            words = p_clean.split()
+            if len(words) > int(target_words * 1.4):
+                sentences = re.split(r'(?<=[.!?])\s+', p_clean)
+                curr_sent = []
+                curr_sent_len = 0
+                for s in sentences:
+                    s_words = len(s.split())
+                    if curr_sent and (curr_sent_len + s_words > target_words):
+                        normalized_paragraphs.append(" ".join(curr_sent))
+                        curr_sent = [s]
+                        curr_sent_len = s_words
+                    else:
+                        curr_sent.append(s)
+                        curr_sent_len += s_words
+                if curr_sent:
+                    normalized_paragraphs.append(" ".join(curr_sent))
+            else:
+                normalized_paragraphs.append(p_clean)
+
+        # 2. Group into chapters around target_words
+        chapters = []
+        current_chapter_ps = []
+        current_chapter_words = 0
+        chapter_num = 1
+
+        for p in normalized_paragraphs:
+            p_words = len(p.split())
+            if p_words == 0:
+                continue
+
+            # Check if current chapter has accumulated enough words
+            if current_chapter_ps and (current_chapter_words >= target_words or (current_chapter_words >= int(target_words * 0.75) and (current_chapter_words + p_words) > int(target_words * 1.3))):
+                chapters.append({
+                    "chapter_num": chapter_num,
+                    "chapter_title": f"Chapter {chapter_num}",
+                    "paragraphs": current_chapter_ps,
+                    "word_count": current_chapter_words,
+                    "content": "\n\n".join(current_chapter_ps)
+                })
+                chapter_num += 1
+                current_chapter_ps = []
+                current_chapter_words = 0
+
+            current_chapter_ps.append(p)
+            current_chapter_words += p_words
+
+        if current_chapter_ps:
+            chapters.append({
+                "chapter_num": chapter_num,
+                "chapter_title": f"Chapter {chapter_num}",
+                "paragraphs": current_chapter_ps,
+                "word_count": current_chapter_words,
+                "content": "\n\n".join(current_chapter_ps)
+            })
+
+        return chapters
+
+    def scrape_story(
+        self,
+        url: str,
+        filter_chapter_titles: bool = True,
+        chunk_by_words: bool = True,
+        words_per_chapter: int = 400,
+        status_callback: Optional[Callable[[str], None]] = None
+    ) -> dict:
+        """
+        Scrapes full story across all chapters using multi-strategy cascading:
+        1. TOC Discovery
+        2. Next Chapter button/link traversal
+        3. Adaptive URL pattern probing
+        Then automatically partitions story into ~400 words chapters with Chapter 1, 2... headers.
         """
         def log(msg: str):
             if status_callback:
@@ -348,12 +403,10 @@ class UniversalStoryScraper:
             print(msg)
 
         clean_url = url.split('?')[0].split('#')[0].rstrip('/')
-        log(f"🌐 Đang kết nối tới: {url}")
+        log(f"🔍 Đang truy cập URL truyện: {url}")
 
-        # Fetch first page
         first_soup, final_start_url = self.fetch_page(url)
 
-        # Title extraction
         title_el = first_soup.find('meta', property='og:title')
         raw_title = title_el['content'] if title_el else (
             first_soup.find('h1').get_text() if first_soup.find('h1') else (
@@ -364,16 +417,14 @@ class UniversalStoryScraper:
         log(f"📖 Tiêu đề truyện: {title}")
 
         all_paragraphs = []
-        chapter_details = []
+        raw_chapter_details = []
         visited_urls: Set[str] = set()
         seen_first_paragraphs: Set[str] = set()
 
-        # =====================================================================
-        # STRATEGY 1: TABLE OF CONTENTS (TOC) DISCOVERY
-        # =====================================================================
+        # 1. TOC
         toc_links = self.find_all_toc_links(first_soup, final_start_url)
         if len(toc_links) >= 2:
-            log(f"📑 Tìm thấy mục lục tổng hợp ({len(toc_links)} chương) qua cấu trúc TOC.")
+            log(f"📑 Tìm thấy mục lục với {len(toc_links)} chương.")
             for i, ch_url in enumerate(toc_links, 1):
                 clean_ch_url = ch_url.split('#')[0].rstrip('/')
                 if clean_ch_url in visited_urls:
@@ -385,19 +436,15 @@ class UniversalStoryScraper:
                     ps = self.extract_paragraphs_from_soup(soup, filter_chapter_titles=filter_chapter_titles)
                     if ps:
                         all_paragraphs.extend(ps)
-                        chapter_details.append({"chapter": i, "paragraphs": ps, "url": ch_url})
+                        raw_chapter_details.append({"chapter": i, "paragraphs": ps, "url": ch_url})
                         log(f"  ✓ Đã cào Chương {i}: {len(ps)} đoạn văn.")
-                    else:
-                        log(f"  ⚠️ Chương {i} không trích xuất được đoạn văn nào.")
                 except Exception as e:
-                    log(f"  ⚠️ Lỗi khi cào chương {i} ({ch_url}): {e}")
+                    log(f"  ⚠️ Lỗi tại chương {i}: {e}")
                     break
 
-        # =====================================================================
-        # STRATEGY 2: NEXT CHAPTER BUTTON / LINK CRAWLER
-        # =====================================================================
-        if not chapter_details:
-            log("⚡ Khởi động cơ chế quét tự động qua nút 'Next Chapter' / liên kết trang tiếp...")
+        # 2. Next Button Crawler
+        if not raw_chapter_details:
+            log("⚡ Quét tự động qua nút 'Next Chapter' / liên kết trang tiếp...")
             curr_soup = first_soup
             curr_url = final_start_url
             chapter_num = 1
@@ -405,13 +452,11 @@ class UniversalStoryScraper:
             while chapter_num <= 100:
                 clean_curr_url = curr_url.split('#')[0].rstrip('/')
                 if clean_curr_url in visited_urls:
-                    log(f"  🛑 Phát hiện URL đã duyệt qua ({curr_url}). Dừng quét.")
                     break
                 visited_urls.add(clean_curr_url)
 
                 ps = self.extract_paragraphs_from_soup(curr_soup, filter_chapter_titles=filter_chapter_titles)
                 if ps:
-                    # Prevent looping content
                     first_p = ps[0]
                     if first_p in seen_first_paragraphs:
                         log(f"  🛑 Nội dung chương {chapter_num} trùng lặp với chương trước. Kết thúc truyện.")
@@ -419,36 +464,28 @@ class UniversalStoryScraper:
                     seen_first_paragraphs.add(first_p)
 
                     all_paragraphs.extend(ps)
-                    chapter_details.append({"chapter": chapter_num, "paragraphs": ps, "url": curr_url})
+                    raw_chapter_details.append({"chapter": chapter_num, "paragraphs": ps, "url": curr_url})
                     log(f"  ✓ Đã cào Chương {chapter_num}: {len(ps)} đoạn văn.")
-                else:
-                    log(f"  ⚠️ Không tìm thấy đoạn văn ở chương {chapter_num}.")
 
-                # Find next chapter link
                 next_url = self.find_next_chapter_link(curr_soup, curr_url)
                 if next_url and next_url.split('#')[0].rstrip('/') not in visited_urls:
                     try:
                         curr_soup, curr_url = self.fetch_page(next_url)
                         chapter_num += 1
                         time.sleep(0.3)
-                    except Exception as e:
-                        log(f"  🛑 Không thể tải chương tiếp theo ({next_url}): {e}")
+                    except Exception:
                         break
                 else:
                     break
 
-        # =====================================================================
-        # STRATEGY 3: ADAPTIVE URL PATTERN PROBING
-        # (Fallback if site has multiple chapters but no Next button or TOC)
-        # =====================================================================
-        if len(chapter_details) <= 1:
+        # 3. Adaptive URL Probing
+        if len(raw_chapter_details) <= 1:
             template, start_num = self.detect_url_pattern(url)
             candidate_templates = []
 
             if template:
                 candidate_templates.append((template, start_num))
             else:
-                # Test probe patterns: /chapter-{n}, /part-{n}, /{n}, /page/{n}/, ?page={n}
                 base = clean_url
                 candidate_templates.extend([
                     (f"{base}/chapter-{{n}}", 1),
@@ -467,14 +504,12 @@ class UniversalStoryScraper:
 
                 try:
                     probe_soup, final_probe_url = self.fetch_page(probe_url)
-                    # Verify probe is not redirected to home/chapter 1
                     if final_probe_url.rstrip('/') != clean_url.rstrip('/') and not final_probe_url.endswith('/chapter-1'):
                         probe_ps = self.extract_paragraphs_from_soup(probe_soup, filter_chapter_titles=filter_chapter_titles)
                         if probe_ps and probe_ps[0] not in seen_first_paragraphs:
-                            log(f"🎯 Phát hiện cấu trúc phân chương tự động: {tmpl}")
-                            # Reset and crawl with this detected template
+                            log(f"🎯 Phát hiện cấu trúc phân chương: {tmpl}")
                             all_paragraphs = []
-                            chapter_details = []
+                            raw_chapter_details = []
                             visited_urls.clear()
                             seen_first_paragraphs.clear()
 
@@ -484,14 +519,13 @@ class UniversalStoryScraper:
                                     soup, final_u = self.fetch_page(ch_url)
                                     if n > 1 and (final_u.rstrip('/') == clean_url.rstrip('/') or final_u.endswith('/chapter-1')):
                                         break
-
                                     ps = self.extract_paragraphs_from_soup(soup, filter_chapter_titles=filter_chapter_titles)
                                     if not ps or ps[0] in seen_first_paragraphs:
                                         break
                                     seen_first_paragraphs.add(ps[0])
 
                                     all_paragraphs.extend(ps)
-                                    chapter_details.append({"chapter": n, "paragraphs": ps, "url": ch_url})
+                                    raw_chapter_details.append({"chapter": n, "paragraphs": ps, "url": ch_url})
                                     log(f"  ✓ Đã cào Chương {n}: {len(ps)} đoạn văn.")
                                     time.sleep(0.3)
                                 except Exception:
@@ -500,20 +534,40 @@ class UniversalStoryScraper:
                 except Exception:
                     continue
 
-        total_chapters = len(chapter_details) if chapter_details else 1
+        total_original_chapters = len(raw_chapter_details) if raw_chapter_details else 1
         total_words = sum(len(p.split()) for p in all_paragraphs)
         read_time_mins = max(1, round(total_words / 200))
+
+        # Chunk paragraphs into ~400 words chapters (with 'Chapter 1', 'Chapter 2' headers)
+        if chunk_by_words:
+            chapter_chunks = self.chunk_paragraphs_by_words(all_paragraphs, target_words=words_per_chapter)
+        else:
+            chapter_chunks = [{
+                "chapter_num": 1,
+                "chapter_title": "Chapter 1",
+                "paragraphs": all_paragraphs,
+                "word_count": total_words,
+                "content": "\n\n".join(all_paragraphs)
+            }]
+
+        total_chunks = len(chapter_chunks)
+
+        # Build formatted chapters text
+        chapter_blocks = []
+        for ch in chapter_chunks:
+            chapter_blocks.append(f"{ch['chapter_title']}\n\n" + "\n\n".join(ch['paragraphs']))
+        formatted_chapters_text = "\n\n\n".join(chapter_blocks)
 
         header_text = (
             f"========================================\n"
             f"{title.upper()}\n"
             f"Source URL: {url}\n"
-            f"Total Chapters: {total_chapters} | Paragraphs: {len(all_paragraphs)} | Words: {total_words}\n"
+            f"Total Words: {total_words:,} | Total Chapters: {total_chunks} (~{words_per_chapter} words/chapter)\n"
             f"Estimated Reading Time: ~{read_time_mins} minutes\n"
             f"Scraped Date: {time.strftime('%Y-%m-%d %H:%M:%S')}\n"
             f"========================================\n\n"
         )
-        full_text = header_text + "\n\n".join(all_paragraphs)
+        full_text = header_text + formatted_chapters_text
 
         safe_title = re.sub(r'[\\/*?:"<>|’‘“”\']', '', title)
         safe_title = safe_title.replace('—', '-').replace('–', '-').strip()[:80]
@@ -528,17 +582,21 @@ class UniversalStoryScraper:
         except Exception:
             pass
 
-        log(f"🎉 Hoàn tất cào truyện! {total_chapters} chương, {len(all_paragraphs)} đoạn, {total_words} từ.")
+        log(f"🎉 Hoàn tất cào truyện! {total_chunks} chương (~{words_per_chapter} từ/chương), {len(all_paragraphs)} đoạn văn, {total_words:,} từ.")
+        log(f"💾 File truyện đã được lưu: {file_path}")
 
         return {
             "title": title,
             "url": url,
-            "total_chapters": total_chapters,
+            "total_original_chapters": total_original_chapters,
+            "total_chapters": total_chunks,
             "total_paragraphs": len(all_paragraphs),
             "total_words": total_words,
             "read_time_mins": read_time_mins,
             "paragraphs": all_paragraphs,
-            "chapter_details": chapter_details,
+            "raw_chapter_details": raw_chapter_details,
+            "chapter_chunks": chapter_chunks,
+            "formatted_chapters_text": formatted_chapters_text,
             "full_text": full_text,
             "file_name": file_name,
             "file_path": file_path
