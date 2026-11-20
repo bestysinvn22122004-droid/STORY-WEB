@@ -5,6 +5,13 @@ import time
 import zipfile
 import streamlit as st
 from story_scraper import UniversalStoryScraper
+from video_analyzer import (
+    analyze_facebook_video, load_default_instruction, is_facebook_url,
+    VideoAnalyzerError, DEFAULT_MODEL, available_models,
+    load_saved_instructions, save_instruction, delete_instruction,
+)
+import story_publisher as publisher
+import llm_tools
 
 # =========================================================================
 # CONFIGURATION & PAGE SETUP
@@ -80,6 +87,88 @@ def create_zip_archive(stories_results: list) -> bytes:
     return buf.getvalue()
 
 
+AUTO_PUBLISH_LABEL = "📤 Tự đăng lên web truyện sau khi cào xong"
+
+
+def add_paraphrased_title(item: dict, write=None) -> None:
+    """Asks the LLM for a reworded title and stores it on the scraped item."""
+    if not llm_tools.is_configured():
+        return
+    try:
+        item["paraphrased_title"] = llm_tools.paraphrase_title(item["title"])
+        if write:
+            write(f"✍️ Tiêu đề viết lại: {item['paraphrased_title']}")
+    except Exception as e:
+        item["paraphrase_error"] = str(e)
+        if write:
+            write(f"⚠️ Không viết lại được tiêu đề: {e}")
+
+
+def render_paraphrased_title(item: dict) -> None:
+    if item.get("paraphrased_title"):
+        st.markdown("**✍️ Tiêu đề đã paraphrase:**")
+        st.code(item["paraphrased_title"], language="text")
+    elif item.get("paraphrase_error"):
+        st.warning(f"⚠️ Không paraphrase được tiêu đề: {item['paraphrase_error']}")
+
+
+def publish_scraped(item: dict, write=None, with_image: bool = False) -> None:
+    """Publishes a scraped story (already chunked) and records the outcome on the item."""
+    title = item.get("paraphrased_title") or item["title"]
+    chapters = item.get("chapter_chunks") or None
+    if chapters and item.get("paraphrased_title"):
+        chapters = publisher.retitle_chapters(chapters, title)
+    image_data = None
+    if with_image:
+        try:
+            if write:
+                write("🎨 Đang tạo ảnh bìa 3x4 từ tiêu đề...")
+            image_data = llm_tools.generate_cover_image(title)
+            item["cover_image"] = image_data
+        except Exception as e:
+            item["cover_error"] = str(e)
+            if write:
+                write(f"⚠️ Không tạo được ảnh bìa, đăng không ảnh: {e}")
+    try:
+        out = publisher.publish_story(
+            title, item.get("formatted_chapters_text", ""),
+            chapters=chapters, status_callback=write, image_data=image_data,
+        )
+        item["publish"] = {"ok": True, "chapters": out["chapters"], "posts": out["posts"],
+                           "series_url": out.get("series_url", "")}
+    except publisher.PublishError as e:
+        item["publish"] = {"ok": False, "error": str(e)}
+    except Exception as e:
+        item["publish"] = {"ok": False, "error": f"{type(e).__name__}: {e}"}
+
+
+def render_publish_box(item: dict, key: str) -> None:
+    """Shows the publish outcome of a scraped story, or a manual publish button."""
+    if not publisher.is_configured():
+        return
+    pub = item.get("publish")
+    if pub and pub.get("ok"):
+        first = (pub.get("posts") or [{}])[0].get("link")
+        msg = f"✅ Đã đăng lên {publisher.site_name()}: {pub['chapters']} chương."
+        if first:
+            msg += f" [Mở Chapter 1]({first})"
+        if pub.get("series_url"):
+            msg += f" · [Quản lý series]({pub['series_url']})"
+        st.success(msg)
+        if item.get("cover_image"):
+            st.image(item["cover_image"][0], caption="Ảnh bìa đã tạo", width=240)
+        elif item.get("cover_error"):
+            st.warning(f"⚠️ Đăng không có ảnh bìa: {item['cover_error']}")
+        return
+    if pub and not pub.get("ok"):
+        st.error(f"❌ Đăng lên web thất bại: {pub['error']}")
+    label = "🔁 THỬ ĐĂNG LẠI" if pub else f"📤 ĐĂNG LÊN WEB TRUYỆN ({publisher.site_name()})"
+    if st.button(label, key=key, use_container_width=True):
+        with st.spinner("Đang đăng lên web truyện..."):
+            publish_scraped(item)
+        st.rerun()
+
+
 def main():
     # -------------------------------------------------------------------------
     # SIDEBAR CONFIGURATION
@@ -127,7 +216,11 @@ def main():
     )
 
     # Tabs for Single and Batch
-    tab_single, tab_batch = st.tabs(["📖 Cào 1 Truyện (Single)", "📚 Cào Hàng Loạt (Batch Scrape)"])
+    tab_single, tab_batch, tab_video = st.tabs([
+        "📖 Cào 1 Truyện (Single)",
+        "📚 Cào Hàng Loạt (Batch Scrape)",
+        "🎬 Phân Tích Video Facebook",
+    ])
 
     # =========================================================================
     # TAB 1: SINGLE STORY SCRAPE
@@ -137,6 +230,10 @@ def main():
             story_url = st.text_input(
                 "📌 Dán link web truyện bất kỳ (Chương 1 hoặc trang truyện gốc):",
                 placeholder="https://spotlight.treeiq.biz/blog/... hoặc https://stories.thebustednews.com/p/... hoặc https://newsfeed.cafex.biz/..."
+            )
+            auto_publish_single = publisher.is_configured() and st.toggle(
+                AUTO_PUBLISH_LABEL, value=False, key="auto_publish_single",
+                help="Bật: cào xong tự tạo series và đăng toàn bộ chapter lên web truyện. Tắt: bạn tự bấm nút đăng sau.",
             )
             col_btn1, col_btn2 = st.columns([1, 4])
             with col_btn1:
@@ -156,6 +253,9 @@ def main():
                             words_per_chapter=words_per_chapter,
                             status_callback=lambda msg: status_box.write(msg)
                         )
+                        add_paraphrased_title(result, write=lambda msg: status_box.write(msg))
+                        if auto_publish_single:
+                            publish_scraped(result, write=lambda msg: status_box.write(msg), with_image=True)
                         status_box.update(
                             label=f"🎉 Hoàn thành! Đã tạo {result['total_chapters']} Chapter ({result['total_words']:,} từ)!",
                             state="complete"
@@ -171,6 +271,7 @@ def main():
             st.markdown("---")
             st.subheader(f"📖 {res['title']}")
             st.caption(f"Nguồn: [{res['url']}]({res['url']})")
+            render_paraphrased_title(res)
 
             # Stat cards
             col1, col2, col3, col4 = st.columns(4)
@@ -204,6 +305,7 @@ def main():
                 """, unsafe_allow_html=True)
 
             st.markdown("<br>", unsafe_allow_html=True)
+            render_publish_box(res, key="publish_single_btn")
 
             # Action Buttons
             col_act1, col_act2 = st.columns(2)
@@ -250,6 +352,10 @@ def main():
                 placeholder="https://stories.treeiq.biz/blog/story-1\nhttps://news.treeiq.biz/blog/story-2\nhttps://stories.thebustednews.com/p/story-3",
                 height=180
             )
+            auto_publish_batch = publisher.is_configured() and st.toggle(
+                AUTO_PUBLISH_LABEL, value=False, key="auto_publish_batch",
+                help="Bật: mỗi truyện cào xong sẽ tự đăng lên web truyện. Tắt: tự bấm nút đăng ở từng truyện.",
+            )
             submit_batch_btn = st.form_submit_button("🚀 BẮT ĐẦU CÀO HÀNG LOẠT", type="primary")
 
         if submit_batch_btn:
@@ -274,6 +380,10 @@ def main():
                             words_per_chapter=words_per_chapter
                         )
                         res["status"] = "success"
+                        add_paraphrased_title(res)
+                        if auto_publish_batch:
+                            status_text.markdown(f"**[{idx}/{len(urls)}]** Đang tạo ảnh và đăng lên web: `{res['title']}`...")
+                            publish_scraped(res, with_image=True)
                         batch_results.append(res)
                     except Exception as e:
                         batch_results.append({
@@ -317,6 +427,8 @@ def main():
                 if item.get("status") == "success":
                     with st.expander(f"✅ #{i}: {item['title']} — {item['total_chapters']} Chapters ({item['total_words']:,} từ)"):
                         st.caption(f"Nguồn: {item['url']}")
+                        render_paraphrased_title(item)
+                        render_publish_box(item, key=f"publish_batch_{i}")
                         c1, c2 = st.columns([1, 3])
                         with c1:
                             st.download_button(
@@ -332,6 +444,258 @@ def main():
                 else:
                     with st.expander(f"❌ #{i}: Lỗi tại link: {item['url']}"):
                         st.error(f"Chi tiết lỗi: {item.get('error')}")
+
+    # =========================================================================
+    # TAB 3: FACEBOOK VIDEO -> LLM ANALYSIS
+    # =========================================================================
+    with tab_video:
+        st.markdown("### 🎬 Phân Tích Video Facebook Bằng AI")
+        st.markdown(
+            "Dán link **video Facebook công khai**. Hệ thống tải video về, gửi cho Gemini kèm "
+            "instruction bên dưới và hiển thị kết quả để bạn **copy 1 click**."
+        )
+
+        NEW_INSTRUCTION = "➕ Instruction mới (bắt đầu từ bản mặc định)"
+
+        # A save/delete click happens after the selectbox has been drawn, so the
+        # new selection is parked here and applied at the top of the next rerun.
+        pending_choice = st.session_state.pop("_video_instr_pending", None)
+        if pending_choice is not None:
+            st.session_state["video_instr_choice"] = pending_choice
+            st.session_state.pop("_video_instr_loaded", None)
+
+        col_url, col_model = st.columns([3, 1])
+        with col_url:
+            video_url = st.text_input(
+                "🔗 Link video Facebook:",
+                placeholder="https://www.facebook.com/watch/?v=1234567890 hoặc https://fb.watch/xxxx/",
+                key="video_url",
+            )
+        with col_model:
+            video_model = st.selectbox(
+                "🧠 Model:",
+                options=available_models(),
+                index=0,
+                key="video_model",
+                help="Mặc định là model ổn định nhất. Nếu model chọn quá tải (503/504), hệ thống tự chuyển sang model dự phòng.",
+            )
+
+        # ----- Instruction: default toggle / saved library -------------------
+        st.markdown("#### 📝 Instruction gửi cho AI")
+        default_instruction = load_default_instruction()
+        use_default = st.toggle(
+            "Dùng instruction mặc định của hệ thống",
+            value=True,
+            key="video_use_default",
+            help="Bật: dùng bản mặc định trên server. Tắt: chọn một instruction đã lưu hoặc tự soạn / lưu bản mới.",
+        )
+
+        if use_default:
+            instruction_text = default_instruction
+            with st.expander("👁️ Xem instruction mặc định", expanded=False):
+                st.text_area(
+                    "Instruction mặc định:",
+                    value=default_instruction,
+                    height=260,
+                    disabled=True,
+                    label_visibility="collapsed",
+                )
+        else:
+            saved = load_saved_instructions()
+            saved_names = list(saved.keys())
+            options = [NEW_INSTRUCTION] + saved_names
+            if st.session_state.get("video_instr_choice") not in options:
+                st.session_state["video_instr_choice"] = NEW_INSTRUCTION
+                st.session_state.pop("_video_instr_loaded", None)
+
+            choice = st.selectbox(
+                "📚 Instruction đã lưu:",
+                options=options,
+                key="video_instr_choice",
+                help=f"Đã lưu {len(saved_names)} instruction. Danh sách dùng chung cho mọi người truy cập web.",
+            )
+            # Reload the editor only when the selection changes, so edits survive reruns.
+            if st.session_state.get("_video_instr_loaded") != choice:
+                st.session_state["video_instr_editor"] = (
+                    default_instruction if choice == NEW_INSTRUCTION else saved.get(choice, "")
+                )
+                st.session_state["_video_instr_loaded"] = choice
+
+            instruction_text = st.text_area(
+                "Nội dung instruction:",
+                key="video_instr_editor",
+                height=320,
+                help="Sửa thoải mái; bấm 💾 Lưu để giữ lại dưới một tên, lần sau chọn lại từ danh sách.",
+            )
+
+            col_name, col_save, col_del = st.columns([3, 1, 1])
+            with col_name:
+                save_name = st.text_input(
+                    "Tên để lưu:",
+                    value="" if choice == NEW_INSTRUCTION else choice,
+                    placeholder="VD: Phân tích cinematic V3",
+                    label_visibility="collapsed",
+                )
+            with col_save:
+                if st.button("💾 Lưu", use_container_width=True):
+                    try:
+                        saved_as = save_instruction(save_name, instruction_text)
+                        st.session_state["_video_instr_pending"] = saved_as
+                        st.toast(f"Đã lưu instruction “{saved_as}”.", icon="✅")
+                        st.rerun()
+                    except VideoAnalyzerError as e:
+                        st.error(str(e))
+            with col_del:
+                if st.button("🗑️ Xoá", use_container_width=True, disabled=(choice == NEW_INSTRUCTION)):
+                    delete_instruction(choice)
+                    st.session_state["_video_instr_pending"] = NEW_INSTRUCTION
+                    st.toast(f"Đã xoá instruction “{choice}”.", icon="🗑️")
+                    st.rerun()
+
+        auto_publish_video = False  # auto-publish toggle lives on the scrape tabs only
+        submit_video_btn = st.button("🚀 PHÂN TÍCH VIDEO", type="primary", use_container_width=True)
+
+        if submit_video_btn:
+            if not video_url.strip():
+                st.warning("⚠️ Vui lòng dán link video Facebook.")
+            elif not is_facebook_url(video_url):
+                st.warning("⚠️ Link phải thuộc facebook.com hoặc fb.watch.")
+            elif not instruction_text.strip():
+                st.warning("⚠️ Instruction đang trống.")
+            else:
+                status_box = st.status("Đang xử lý...", expanded=True)
+                try:
+                    with status_box:
+                        result = analyze_facebook_video(
+                            video_url,
+                            instruction_text,
+                            model=video_model,
+                            status_callback=lambda m: st.write(m),
+                        )
+                    st.session_state["video_result"] = result
+                    st.session_state.pop("publish_result", None)
+                    st.session_state.pop("publish_seed", None)
+                    if auto_publish_video:
+                        auto_title = publisher.guess_title(result["text"])
+                        try:
+                            with status_box:
+                                pub_res = publisher.publish_story(
+                                    auto_title, result["text"], status_callback=lambda m: st.write(m))
+                            st.session_state["publish_seed"] = f"{result.get('url', '')}|{len(result['text'])}"
+                            st.session_state["publish_title"] = auto_title
+                            st.session_state["publish_intro"] = ""
+                            st.session_state["publish_series_id"] = ""
+                            st.session_state["publish_result"] = pub_res
+                        except Exception as e:
+                            st.session_state["video_publish_error"] = str(e)
+                    status_box.update(label="✅ Hoàn thành!", state="complete", expanded=False)
+                except VideoAnalyzerError as e:
+                    status_box.update(label="❌ Lỗi", state="error", expanded=True)
+                    st.error(str(e))
+                    st.session_state.pop("video_result", None)
+                except Exception as e:
+                    status_box.update(label="❌ Lỗi", state="error", expanded=True)
+                    st.error(f"Lỗi không mong muốn: {type(e).__name__}: {e}")
+                    st.session_state.pop("video_result", None)
+
+        if st.session_state.get("video_result"):
+            res = st.session_state["video_result"]
+            st.markdown("---")
+            c1, c2, c3, c4 = st.columns(4)
+            c1.metric("Model", res.get("model", DEFAULT_MODEL))
+            c2.metric("Thời gian", f"{res.get('elapsed_s', 0)}s")
+            c3.metric("Video", f"{res.get('video_size_mb', 0)} MB")
+            tok = res.get("prompt_tokens")
+            c4.metric("Tokens vào/ra", f"{tok or '-'} / {res.get('output_tokens') or '-'}")
+            st.caption(f"Nguồn: {res.get('url', '')}")
+
+            st.download_button(
+                label="⬇️ TẢI KẾT QUẢ .TXT",
+                data=res["text"],
+                file_name=f"video_analysis_{int(time.time())}.txt",
+                mime="text/plain",
+                use_container_width=True,
+            )
+            st.caption("👉 Bấm icon Copy ở góc trên bên phải khung dưới đây để sao chép toàn bộ kết quả:")
+            st.code(res["text"], language="text")
+
+            # ----- Publish to the story site ---------------------------------
+            st.markdown("---")
+            if not publisher.is_configured():
+                st.info("📤 Chưa cấu hình web truyện (STORY_SITE_URL + tài khoản hoặc token trên server) nên chưa đẩy được.")
+            else:
+                result_key = f"{res.get('url', '')}|{len(res['text'])}"
+                if st.session_state.get("publish_seed") != result_key:
+                    # new analysis result -> reseed the publish form
+                    st.session_state["publish_seed"] = result_key
+                    st.session_state["publish_title"] = publisher.guess_title(res["text"])
+                    st.session_state["publish_intro"] = ""
+                    st.session_state["publish_series_id"] = ""
+                    st.session_state.pop("publish_result", None)
+
+                auto_err = st.session_state.pop("video_publish_error", None)
+                if auto_err:
+                    st.error(f"❌ Tự đăng thất bại: {auto_err}. Bạn có thể sửa tên rồi bấm đăng lại bên dưới.")
+                with st.expander(f"📤 Đẩy lên web truyện ({publisher.site_name()})", expanded=True):
+                    col_t, col_s = st.columns([3, 1])
+                    with col_t:
+                        pub_title = st.text_input("📖 Tên truyện / series:", key="publish_title")
+                    with col_s:
+                        pub_series_id = st.text_input(
+                            "ID series có sẵn (tuỳ chọn):", key="publish_series_id",
+                            help="Để trống để web tự tạo series mới từ tên truyện. Điền ID để thêm chương vào series đã có.",
+                        )
+                    pub_intro = st.text_area(
+                        "Mô tả series (tuỳ chọn, hiện trước Chapter 1):", key="publish_intro", height=80,
+                    )
+                    try:
+                        preview = publisher.split_into_chapters(res["text"], pub_title or "")
+                        n_words = sum(len(" ".join(c["paragraphs"]).split()) for c in preview)
+                        st.caption(
+                            f"Sẽ tạo **{len(preview)} chương** (~{n_words:,} từ). "
+                            + ("Nội dung đã có sẵn marker CHAPTER nên giữ nguyên cách chia." if publisher.has_chapter_markers(res["text"])
+                               else f"Chia tự động ~{publisher.CHAPTER_WORDS} từ/chương, tiêu đề dạng CHAPTER X - TÊN TRUYỆN.")
+                        )
+                    except Exception as e:
+                        preview = []
+                        st.warning(f"Không xem trước được: {e}")
+
+                    already = st.session_state.get("publish_result")
+                    if already:
+                        st.success(f"✅ Đã đẩy lên: {already['chapters']} chương.")
+                        for p in already["posts"]:
+                            if p.get("link"):
+                                st.markdown(f"- [{p.get('title') or p.get('slug')}]({p['link']})")
+                            else:
+                                st.markdown(f"- {p.get('title') or p.get('slug') or p.get('id')}")
+                        st.markdown(f"[Mở trang quản lý series]({already.get('series_url', '')})")
+                        label, kind = "🔁 ĐẨY LẠI (tạo bản mới)", "secondary"
+                    else:
+                        label, kind = "📤 ĐẨY LÊN WEB TRUYỆN", "primary"
+
+                    if st.button(label, type=kind, use_container_width=True, disabled=not preview):
+                        if not (pub_title or "").strip():
+                            st.warning("⚠️ Nhập tên truyện trước.")
+                        elif pub_series_id.strip() and not pub_series_id.strip().isdigit():
+                            st.warning("⚠️ ID series phải là số.")
+                        else:
+                            pub_box = st.status("Đang đẩy lên web truyện...", expanded=True)
+                            try:
+                                with pub_box:
+                                    pub_res = publisher.publish_story(
+                                        pub_title, res["text"], intro=pub_intro,
+                                        series_id=int(pub_series_id) if pub_series_id.strip() else None,
+                                        status_callback=lambda m: st.write(m),
+                                    )
+                                pub_box.update(label="✅ Đã đẩy xong!", state="complete", expanded=False)
+                                st.session_state["publish_result"] = pub_res
+                                st.rerun()
+                            except publisher.PublishError as e:
+                                pub_box.update(label="❌ Lỗi", state="error", expanded=True)
+                                st.error(str(e))
+                            except Exception as e:
+                                pub_box.update(label="❌ Lỗi", state="error", expanded=True)
+                                st.error(f"Lỗi không mong muốn: {type(e).__name__}: {e}")
 
 
 if __name__ == "__main__":

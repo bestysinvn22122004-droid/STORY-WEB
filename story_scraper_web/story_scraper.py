@@ -67,6 +67,11 @@ class UniversalStoryScraper:
             re.I
         )
 
+    def format_chapter_title(self, n: int, story_title: str = "") -> str:
+        """Heading for each auto-split chunk: 'CHAPTER X - STORY TITLE'."""
+        t = (story_title or "").strip()
+        return f"CHAPTER {n} - {t.upper()}" if t else f"CHAPTER {n}"
+
     def clean_title(self, title: str) -> str:
         if not title:
             return "Untitled Story"
@@ -310,7 +315,7 @@ class UniversalStoryScraper:
 
         return paragraphs
 
-    def chunk_paragraphs_by_words(self, paragraphs: List[str], target_words: int = 400) -> List[Dict]:
+    def chunk_paragraphs_by_words(self, paragraphs: List[str], target_words: int = 400, story_title: str = "") -> List[Dict]:
         """
         Groups paragraphs into chapters of approximately target_words (default 400 words).
         Ensures each chapter chunk starts with 'Chapter 1', 'Chapter 2', etc.
@@ -318,6 +323,9 @@ class UniversalStoryScraper:
         """
         if not paragraphs:
             return []
+
+        def make_title(n: int) -> str:
+            return self.format_chapter_title(n, story_title)
 
         # 1. Normalize and break down any excessively long paragraph (> target_words * 1.4)
         normalized_paragraphs = []
@@ -359,7 +367,7 @@ class UniversalStoryScraper:
             if current_chapter_ps and (current_chapter_words >= target_words or (current_chapter_words >= int(target_words * 0.75) and (current_chapter_words + p_words) > int(target_words * 1.3))):
                 chapters.append({
                     "chapter_num": chapter_num,
-                    "chapter_title": f"Chapter {chapter_num}",
+                    "chapter_title": make_title(chapter_num),
                     "paragraphs": current_chapter_ps,
                     "word_count": current_chapter_words,
                     "content": "\n\n".join(current_chapter_ps)
@@ -374,7 +382,7 @@ class UniversalStoryScraper:
         if current_chapter_ps:
             chapters.append({
                 "chapter_num": chapter_num,
-                "chapter_title": f"Chapter {chapter_num}",
+                "chapter_title": make_title(chapter_num),
                 "paragraphs": current_chapter_ps,
                 "word_count": current_chapter_words,
                 "content": "\n\n".join(current_chapter_ps)
@@ -540,11 +548,11 @@ class UniversalStoryScraper:
 
         # Chunk paragraphs into ~400 words chapters (with 'Chapter 1', 'Chapter 2' headers)
         if chunk_by_words:
-            chapter_chunks = self.chunk_paragraphs_by_words(all_paragraphs, target_words=words_per_chapter)
+            chapter_chunks = self.chunk_paragraphs_by_words(all_paragraphs, target_words=words_per_chapter, story_title=title)
         else:
             chapter_chunks = [{
                 "chapter_num": 1,
-                "chapter_title": "Chapter 1",
+                "chapter_title": self.format_chapter_title(1, title),
                 "paragraphs": all_paragraphs,
                 "word_count": total_words,
                 "content": "\n\n".join(all_paragraphs)

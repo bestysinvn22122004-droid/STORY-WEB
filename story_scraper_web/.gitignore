@@ -1,0 +1,5 @@
+tmp_videos/
+__pycache__/
+.venv/
+data/
+output/
