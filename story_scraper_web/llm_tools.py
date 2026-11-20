@@ -14,8 +14,9 @@ by video_analyzer):
     COVER_IMAGE_ASPECT     optional - default "3:4"
     CF_ACCOUNT_ID          } when both are set, covers are generated with
     CF_AI_TOKEN            } Cloudflare Workers AI (free daily quota) instead of Gemini
-    CF_IMAGE_MODEL         optional - default @cf/black-forest-labs/flux-1-schnell
-    CF_IMAGE_STEPS         optional - default 6 (max 8 for flux schnell)
+    CF_IMAGE_MODEL         optional - default @cf/black-forest-labs/flux-2-klein-4b
+    CF_IMAGE_FALLBACK_MODEL optional - used when the main model fails (default flux-1-schnell)
+    CF_IMAGE_STEPS         optional - steps for flux-1-schnell (default 8, its maximum)
 """
 import io
 import os
@@ -32,8 +33,10 @@ IMAGE_MODEL = os.environ.get("GEMINI_IMAGE_MODEL", "gemini-3.1-flash-image")
 IMAGE_ASPECT = os.environ.get("COVER_IMAGE_ASPECT", "3:4")
 CF_ACCOUNT_ID = os.environ.get("CF_ACCOUNT_ID", "").strip()
 CF_AI_TOKEN = os.environ.get("CF_AI_TOKEN", "").strip()
-CF_IMAGE_MODEL = os.environ.get("CF_IMAGE_MODEL", "@cf/black-forest-labs/flux-1-schnell")
-CF_IMAGE_STEPS = int(os.environ.get("CF_IMAGE_STEPS", "6"))
+CF_IMAGE_MODEL = os.environ.get("CF_IMAGE_MODEL", "@cf/black-forest-labs/flux-2-klein-4b")
+CF_IMAGE_FALLBACK_MODEL = os.environ.get("CF_IMAGE_FALLBACK_MODEL", "@cf/black-forest-labs/flux-1-schnell")
+CF_IMAGE_STEPS = int(os.environ.get("CF_IMAGE_STEPS", "8"))
+CF_IMAGE_SIZE = (768, 1024)
 
 
 class LLMToolError(Exception):
@@ -116,11 +119,16 @@ Portrait orientation, aspect ratio {aspect}. Do not render any text, letters, ca
 # ---------------------------------------------------------------------------
 # Cloudflare Workers AI cover (title -> scene prompt -> FLUX -> crop to 3:4)
 # ---------------------------------------------------------------------------
-SCENE_PROMPT = """Turn this story title into ONE image-generation prompt (max 70 words) describing a single dramatic, photorealistic scene that illustrates the story.
+SCENE_PROMPT = """Turn this story title into ONE image-generation prompt (80-110 words) for a single candid, photorealistic photograph that illustrates the story's key moment.
+
+Write it like a photo brief, in this order:
+1. Shot type and place: e.g. "Candid editorial photograph inside ..." with time of day.
+2. Each person separately, with their position in the frame (center / left / right / background): age, clothing, posture, facial expression, what they are doing. Maximum three people; animals count.
+3. Lighting and camera: light source, mood, "shallow depth of field, 50mm lens, natural skin texture, realistic hands, vertical portrait framing".
 
 Rules:
-- Describe only what is visible: who (age, clothing, expression), where, what is happening, lighting, camera framing.
-- Vertical portrait composition with the main subject centered.
+- Only what is visible. No names, no dialogue, no backstory, no abstract words.
+- The emotional reaction named in the title must be readable on the faces.
 - Family-friendly wording: no words like death, kill, blood, weapon, naked. Imply danger through expressions and atmosphere.
 - Do NOT quote the title and do NOT ask for any text, sign, caption or logo.
 {extra}- Output only the prompt, one paragraph.
@@ -168,13 +176,23 @@ def _crop_to_aspect(raw: bytes) -> Tuple[bytes, str]:
     return buf.getvalue(), "image/jpeg"
 
 
-def _cloudflare_image(prompt: str) -> bytes:
-    url = f"https://api.cloudflare.com/client/v4/accounts/{CF_ACCOUNT_ID}/ai/run/{CF_IMAGE_MODEL}"
+def _cloudflare_image(prompt: str, model: str = "") -> bytes:
+    model = model or CF_IMAGE_MODEL
+    url = f"https://api.cloudflare.com/client/v4/accounts/{CF_ACCOUNT_ID}/ai/run/{model}"
+    headers = {"Authorization": f"Bearer {CF_AI_TOKEN}"}
+    w, h = CF_IMAGE_SIZE
     try:
-        resp = requests.post(url, headers={"Authorization": f"Bearer {CF_AI_TOKEN}"},
-                             json={"prompt": prompt, "steps": CF_IMAGE_STEPS}, timeout=120)
+        if "flux-1-schnell" in model:      # square only, JSON body
+            resp = requests.post(url, headers=headers, json={"prompt": prompt, "steps": CF_IMAGE_STEPS}, timeout=180)
+        elif "flux-2" in model:            # multipart form, native width/height
+            fields = {"prompt": prompt, "width": w, "height": h}
+            resp = requests.post(url, headers=headers, files={k: (None, str(v)) for k, v in fields.items()}, timeout=180)
+        else:                              # leonardo & co: JSON with width/height
+            resp = requests.post(url, headers=headers, json={"prompt": prompt, "width": w, "height": h}, timeout=180)
     except requests.RequestException as exc:
         raise LLMToolError(f"Không kết nối được Cloudflare AI: {exc}")
+    if resp.ok and resp.headers.get("content-type", "").startswith("image/"):
+        return resp.content
     try:
         body = resp.json()
     except ValueError:
@@ -194,13 +212,18 @@ class _NSFWRejected(Exception):
 
 
 def _cover_via_cloudflare(title: str) -> Tuple[bytes, str]:
-    suffix = (" Cinematic lighting, shallow depth of field, ultra detailed, photorealistic. "
-              "The image contains no text or writing.")
+    suffix = " No text, no captions, no watermark."
     last = ""
     for attempt in range(3):
         scene = title_to_scene(title, safer=attempt > 0)
         try:
-            return _crop_to_aspect(_cloudflare_image(scene + suffix))
+            try:
+                raw = _cloudflare_image(scene + suffix)
+            except LLMToolError:
+                if not CF_IMAGE_FALLBACK_MODEL or CF_IMAGE_FALLBACK_MODEL == CF_IMAGE_MODEL:
+                    raise
+                raw = _cloudflare_image(scene + suffix, CF_IMAGE_FALLBACK_MODEL)
+            return _crop_to_aspect(raw)
         except _NSFWRejected as exc:
             last = str(exc)
     raise LLMToolError(f"Bộ lọc nội dung của Cloudflare từ chối cả 3 lần thử. ({last[:120]})")
