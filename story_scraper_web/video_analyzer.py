@@ -6,6 +6,8 @@ Files API and asks a Gemini model to analyse it with a (long) instruction.
 
 Configuration (environment variables):
     GEMINI_API_KEY        required - Google AI Studio key
+    GEMINI_API_KEYS       optional - comma-separated extra keys, tried in order on quota errors
+    VIDEO_INSTRUCTION_FILE optional - path of the default instruction (default prompts/video_instruction.txt)
     GEMINI_MODEL          optional - default "gemini-2.5-flash"
     VIDEO_MAX_MB          optional - reject downloads above this size (default 200)
     VIDEO_MAX_SECONDS     optional - reject videos longer than this (default 1800)
@@ -22,7 +24,7 @@ from pathlib import Path
 from typing import Callable, Optional
 
 BASE_DIR = Path(__file__).resolve().parent
-PROMPT_FILE = BASE_DIR / "prompts" / "video_instruction.txt"
+PROMPT_FILE = Path(os.environ.get("VIDEO_INSTRUCTION_FILE", BASE_DIR / "prompts" / "video_instruction.txt"))
 
 DEFAULT_MODEL = os.environ.get("GEMINI_MODEL", "gemini-2.5-flash")
 MAX_MB = int(os.environ.get("VIDEO_MAX_MB", "200"))
@@ -109,10 +111,16 @@ def download_facebook_video(url: str, status_callback=None) -> Path:
     return video
 
 
-def _get_client():
-    api_key = os.environ.get("GEMINI_API_KEY", "").strip()
-    if not api_key:
-        raise VideoAnalyzerError("Thiếu GEMINI_API_KEY trên server. Liên hệ quản trị viên.")
+def _api_keys() -> list:
+    keys = [os.environ.get("GEMINI_API_KEY", "")] + os.environ.get("GEMINI_API_KEYS", "").split(",")
+    seen, out = set(), []
+    for k in (k.strip() for k in keys):
+        if k and k not in seen:
+            seen.add(k); out.append(k)
+    return out
+
+
+def _get_client(api_key: str):
     try:
         from google import genai
     except ImportError:
@@ -120,13 +128,39 @@ def _get_client():
     return genai.Client(api_key=api_key)
 
 
+def _is_quota_error(exc: Exception) -> bool:
+    code = getattr(exc, "code", None) or getattr(exc, "status_code", None)
+    msg = str(exc).lower()
+    return code in (429, 403) or "quota" in msg or "resource_exhausted" in msg or "rate limit" in msg
+
+
 def analyze_video_file(video_path: Path, instruction: str, model: str = None,
                        status_callback=None) -> dict:
+    """Tries each configured API key in turn; moves to the next one on quota errors."""
+    keys = _api_keys()
+    if not keys:
+        raise VideoAnalyzerError("Thiếu GEMINI_API_KEY trên server. Liên hệ quản trị viên.")
+    last_exc = None
+    for i, key in enumerate(keys, 1):
+        try:
+            return _analyze_with_client(_get_client(key), video_path, instruction, model, status_callback)
+        except VideoAnalyzerError:
+            raise
+        except Exception as exc:
+            if _is_quota_error(exc) and i < len(keys):
+                _log(status_callback, f"⚠️ Key #{i} hết quota, thử key #{i + 1}...")
+                last_exc = exc
+                continue
+            raise
+    raise VideoAnalyzerError(f"Tất cả {len(keys)} key đều hết quota. Chi tiết: {last_exc}")
+
+
+def _analyze_with_client(client, video_path: Path, instruction: str, model: str = None,
+                         status_callback=None) -> dict:
     """Uploads the file to Gemini, waits until ACTIVE, runs the instruction."""
     from google.genai import types
 
     model = model or DEFAULT_MODEL
-    client = _get_client()
 
     _log(status_callback, "☁️ Đang upload video lên Gemini...")
     uploaded = client.files.upload(
