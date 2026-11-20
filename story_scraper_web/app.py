@@ -86,7 +86,7 @@ def create_zip_archive(stories_results: list) -> bytes:
     return buf.getvalue()
 
 
-AUTO_PUBLISH_LABEL = "📤 Tự đăng lên web truyện sau khi xong"
+AUTO_PUBLISH_LABEL = "📤 Tự đăng lên web truyện sau khi cào xong"
 
 
 def publish_scraped(item: dict, write=None) -> None:
@@ -190,7 +190,7 @@ def main():
                 placeholder="https://spotlight.treeiq.biz/blog/... hoặc https://stories.thebustednews.com/p/... hoặc https://newsfeed.cafex.biz/..."
             )
             auto_publish_single = publisher.is_configured() and st.toggle(
-                AUTO_PUBLISH_LABEL, value=True, key="auto_publish_single",
+                AUTO_PUBLISH_LABEL, value=False, key="auto_publish_single",
                 help="Bật: cào xong tự tạo series và đăng toàn bộ chapter lên web truyện. Tắt: bạn tự bấm nút đăng sau.",
             )
             col_btn1, col_btn2 = st.columns([1, 4])
@@ -309,7 +309,7 @@ def main():
                 height=180
             )
             auto_publish_batch = publisher.is_configured() and st.toggle(
-                AUTO_PUBLISH_LABEL, value=True, key="auto_publish_batch",
+                AUTO_PUBLISH_LABEL, value=False, key="auto_publish_batch",
                 help="Bật: mỗi truyện cào xong sẽ tự đăng lên web truyện. Tắt: tự bấm nút đăng ở từng truyện.",
             )
             submit_batch_btn = st.form_submit_button("🚀 BẮT ĐẦU CÀO HÀNG LOẠT", type="primary")
@@ -506,10 +506,7 @@ def main():
                     st.toast(f"Đã xoá instruction “{choice}”.", icon="🗑️")
                     st.rerun()
 
-        auto_publish_video = publisher.is_configured() and st.toggle(
-            AUTO_PUBLISH_LABEL, value=False, key="auto_publish_video",
-            help="Bật: phân tích xong tự đăng kết quả lên web truyện, tên series lấy từ dòng đầu kết quả. Tắt (mặc định): xem kết quả rồi tự bấm nút đăng.",
-        )
+        auto_publish_video = False  # auto-publish toggle lives on the scrape tabs only
         submit_video_btn = st.button("🚀 PHÂN TÍCH VIDEO", type="primary", use_container_width=True)
 
         if submit_video_btn:
