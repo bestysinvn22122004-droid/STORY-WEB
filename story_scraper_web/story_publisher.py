@@ -275,11 +275,11 @@ def _publish_via_session(title, chapters, intro, series_id, feature_image, categ
 # ---------------------------------------------------------------------------
 def build_payload(title: str, text: str, intro: str = "", series_id: Optional[int] = None,
                   feature_image: str = "", category_id: Optional[int] = None,
-                  target_words: int = CHAPTER_WORDS) -> dict:
+                  target_words: int = CHAPTER_WORDS, chapters: Optional[List[dict]] = None) -> dict:
     title = (title or "").strip()
     if not title:
         raise PublishError("Tên truyện đang trống.")
-    chapters = split_into_chapters(text, title, target_words)
+    chapters = chapters or split_into_chapters(text, title, target_words)
     if not chapters:
         raise PublishError("Không tách được chương nào từ nội dung.")
     payload = {
@@ -315,12 +315,12 @@ def _extract_posts(data) -> List[dict]:
 
 def publish_story(title: str, text: str, intro: str = "", series_id: Optional[int] = None,
                   feature_image: str = "", category_id: Optional[int] = None,
-                  status_callback=None) -> dict:
+                  status_callback=None, chapters: Optional[List[dict]] = None) -> dict:
     """
     Creates series + chapters in one request. Returns
     {"chapters": N, "posts": [{id, slug, link, title}], "raw": response}.
     """
-    payload = build_payload(title, text, intro, series_id, feature_image, category_id)
+    payload = build_payload(title, text, intro, series_id, feature_image, category_id, chapters=chapters)
     chapters = payload.pop("_chapters")
     _log(status_callback, f"📦 {len(chapters)} chương, {sum(len(' '.join(c['paragraphs']).split()) for c in chapters):,} từ.")
     _log(status_callback, f"📤 Đang gửi lên {site_name()}...")

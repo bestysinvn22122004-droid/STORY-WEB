@@ -86,6 +86,47 @@ def create_zip_archive(stories_results: list) -> bytes:
     return buf.getvalue()
 
 
+AUTO_PUBLISH_LABEL = "📤 Tự đăng lên web truyện sau khi xong"
+
+
+def publish_scraped(item: dict, write=None) -> None:
+    """Publishes a scraped story (already chunked) and records the outcome on the item."""
+    try:
+        out = publisher.publish_story(
+            item["title"], item.get("formatted_chapters_text", ""),
+            chapters=item.get("chapter_chunks") or None, status_callback=write,
+        )
+        item["publish"] = {"ok": True, "chapters": out["chapters"], "posts": out["posts"],
+                           "series_url": out.get("series_url", "")}
+    except publisher.PublishError as e:
+        item["publish"] = {"ok": False, "error": str(e)}
+    except Exception as e:
+        item["publish"] = {"ok": False, "error": f"{type(e).__name__}: {e}"}
+
+
+def render_publish_box(item: dict, key: str) -> None:
+    """Shows the publish outcome of a scraped story, or a manual publish button."""
+    if not publisher.is_configured():
+        return
+    pub = item.get("publish")
+    if pub and pub.get("ok"):
+        first = (pub.get("posts") or [{}])[0].get("link")
+        msg = f"✅ Đã đăng lên {publisher.site_name()}: {pub['chapters']} chương."
+        if first:
+            msg += f" [Mở Chapter 1]({first})"
+        if pub.get("series_url"):
+            msg += f" · [Quản lý series]({pub['series_url']})"
+        st.success(msg)
+        return
+    if pub and not pub.get("ok"):
+        st.error(f"❌ Đăng lên web thất bại: {pub['error']}")
+    label = "🔁 THỬ ĐĂNG LẠI" if pub else f"📤 ĐĂNG LÊN WEB TRUYỆN ({publisher.site_name()})"
+    if st.button(label, key=key, use_container_width=True):
+        with st.spinner("Đang đăng lên web truyện..."):
+            publish_scraped(item)
+        st.rerun()
+
+
 def main():
     # -------------------------------------------------------------------------
     # SIDEBAR CONFIGURATION
@@ -148,6 +189,10 @@ def main():
                 "📌 Dán link web truyện bất kỳ (Chương 1 hoặc trang truyện gốc):",
                 placeholder="https://spotlight.treeiq.biz/blog/... hoặc https://stories.thebustednews.com/p/... hoặc https://newsfeed.cafex.biz/..."
             )
+            auto_publish_single = publisher.is_configured() and st.toggle(
+                AUTO_PUBLISH_LABEL, value=True, key="auto_publish_single",
+                help="Bật: cào xong tự tạo series và đăng toàn bộ chapter lên web truyện. Tắt: bạn tự bấm nút đăng sau.",
+            )
             col_btn1, col_btn2 = st.columns([1, 4])
             with col_btn1:
                 submit_single_btn = st.form_submit_button("🚀 BẮT ĐẦU CÀO", type="primary", use_container_width=True)
@@ -166,6 +211,8 @@ def main():
                             words_per_chapter=words_per_chapter,
                             status_callback=lambda msg: status_box.write(msg)
                         )
+                        if auto_publish_single:
+                            publish_scraped(result, write=lambda msg: status_box.write(msg))
                         status_box.update(
                             label=f"🎉 Hoàn thành! Đã tạo {result['total_chapters']} Chapter ({result['total_words']:,} từ)!",
                             state="complete"
@@ -214,6 +261,7 @@ def main():
                 """, unsafe_allow_html=True)
 
             st.markdown("<br>", unsafe_allow_html=True)
+            render_publish_box(res, key="publish_single_btn")
 
             # Action Buttons
             col_act1, col_act2 = st.columns(2)
@@ -260,6 +308,10 @@ def main():
                 placeholder="https://stories.treeiq.biz/blog/story-1\nhttps://news.treeiq.biz/blog/story-2\nhttps://stories.thebustednews.com/p/story-3",
                 height=180
             )
+            auto_publish_batch = publisher.is_configured() and st.toggle(
+                AUTO_PUBLISH_LABEL, value=True, key="auto_publish_batch",
+                help="Bật: mỗi truyện cào xong sẽ tự đăng lên web truyện. Tắt: tự bấm nút đăng ở từng truyện.",
+            )
             submit_batch_btn = st.form_submit_button("🚀 BẮT ĐẦU CÀO HÀNG LOẠT", type="primary")
 
         if submit_batch_btn:
@@ -284,6 +336,9 @@ def main():
                             words_per_chapter=words_per_chapter
                         )
                         res["status"] = "success"
+                        if auto_publish_batch:
+                            status_text.markdown(f"**[{idx}/{len(urls)}]** Đang đăng lên web: `{res['title']}`...")
+                            publish_scraped(res)
                         batch_results.append(res)
                     except Exception as e:
                         batch_results.append({
@@ -327,6 +382,7 @@ def main():
                 if item.get("status") == "success":
                     with st.expander(f"✅ #{i}: {item['title']} — {item['total_chapters']} Chapters ({item['total_words']:,} từ)"):
                         st.caption(f"Nguồn: {item['url']}")
+                        render_publish_box(item, key=f"publish_batch_{i}")
                         c1, c2 = st.columns([1, 3])
                         with c1:
                             st.download_button(
@@ -450,6 +506,10 @@ def main():
                     st.toast(f"Đã xoá instruction “{choice}”.", icon="🗑️")
                     st.rerun()
 
+        auto_publish_video = publisher.is_configured() and st.toggle(
+            AUTO_PUBLISH_LABEL, value=False, key="auto_publish_video",
+            help="Bật: phân tích xong tự đăng kết quả lên web truyện, tên series lấy từ dòng đầu kết quả. Tắt (mặc định): xem kết quả rồi tự bấm nút đăng.",
+        )
         submit_video_btn = st.button("🚀 PHÂN TÍCH VIDEO", type="primary", use_container_width=True)
 
         if submit_video_btn:
@@ -469,8 +529,23 @@ def main():
                             model=video_model,
                             status_callback=lambda m: st.write(m),
                         )
-                    status_box.update(label="✅ Hoàn thành!", state="complete", expanded=False)
                     st.session_state["video_result"] = result
+                    st.session_state.pop("publish_result", None)
+                    st.session_state.pop("publish_seed", None)
+                    if auto_publish_video:
+                        auto_title = publisher.guess_title(result["text"])
+                        try:
+                            with status_box:
+                                pub_res = publisher.publish_story(
+                                    auto_title, result["text"], status_callback=lambda m: st.write(m))
+                            st.session_state["publish_seed"] = f"{result.get('url', '')}|{len(result['text'])}"
+                            st.session_state["publish_title"] = auto_title
+                            st.session_state["publish_intro"] = ""
+                            st.session_state["publish_series_id"] = ""
+                            st.session_state["publish_result"] = pub_res
+                        except Exception as e:
+                            st.session_state["video_publish_error"] = str(e)
+                    status_box.update(label="✅ Hoàn thành!", state="complete", expanded=False)
                 except VideoAnalyzerError as e:
                     status_box.update(label="❌ Lỗi", state="error", expanded=True)
                     st.error(str(e))
@@ -515,6 +590,9 @@ def main():
                     st.session_state["publish_series_id"] = ""
                     st.session_state.pop("publish_result", None)
 
+                auto_err = st.session_state.pop("video_publish_error", None)
+                if auto_err:
+                    st.error(f"❌ Tự đăng thất bại: {auto_err}. Bạn có thể sửa tên rồi bấm đăng lại bên dưới.")
                 with st.expander(f"📤 Đẩy lên web truyện ({publisher.site_name()})", expanded=True):
                     col_t, col_s = st.columns([3, 1])
                     with col_t:
