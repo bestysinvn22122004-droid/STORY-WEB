@@ -26,7 +26,7 @@ import base64
 import requests
 from typing import Optional, Tuple
 
-from video_analyzer import VideoAnalyzerError, _api_keys, _get_client, _is_quota_error
+from video_analyzer import VideoAnalyzerError, _api_keys, _get_client, _is_quota_error, _is_overloaded_error
 
 TEXT_MODEL = os.environ.get("GEMINI_TEXT_MODEL", "gemini-2.5-flash")
 IMAGE_MODEL = os.environ.get("GEMINI_IMAGE_MODEL", "gemini-3.1-flash-image")
@@ -64,10 +64,10 @@ def _with_key_rotation(keys: list, call):
             raise LLMToolError(str(exc))
         except Exception as exc:
             last = exc
-            if _is_quota_error(exc):
-                continue
+            if _is_quota_error(exc) or _is_overloaded_error(exc):
+                continue  # out of quota or model busy on this key -> try the next one
             raise LLMToolError(f"Gemini lỗi: {str(exc)[:200]}")
-    raise LLMToolError(f"Tất cả {len(keys)} key đều hết quota cho model này. ({str(last)[:120]})")
+    raise LLMToolError(f"Tất cả {len(keys)} key đều hết quota hoặc model đang quá tải. ({str(last)[:120]})")
 
 
 PARAPHRASE_PROMPT = """Rewrite the story title below so it says the same thing in different words.
