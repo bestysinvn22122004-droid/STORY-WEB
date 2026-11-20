@@ -5,6 +5,10 @@ import time
 import zipfile
 import streamlit as st
 from story_scraper import UniversalStoryScraper
+from video_analyzer import (
+    analyze_facebook_video, load_default_instruction, is_facebook_url,
+    VideoAnalyzerError, DEFAULT_MODEL,
+)
 
 # =========================================================================
 # CONFIGURATION & PAGE SETUP
@@ -127,7 +131,11 @@ def main():
     )
 
     # Tabs for Single and Batch
-    tab_single, tab_batch = st.tabs(["📖 Cào 1 Truyện (Single)", "📚 Cào Hàng Loạt (Batch Scrape)"])
+    tab_single, tab_batch, tab_video = st.tabs([
+        "📖 Cào 1 Truyện (Single)",
+        "📚 Cào Hàng Loạt (Batch Scrape)",
+        "🎬 Phân Tích Video Facebook",
+    ])
 
     # =========================================================================
     # TAB 1: SINGLE STORY SCRAPE
@@ -332,6 +340,83 @@ def main():
                 else:
                     with st.expander(f"❌ #{i}: Lỗi tại link: {item['url']}"):
                         st.error(f"Chi tiết lỗi: {item.get('error')}")
+
+    # =========================================================================
+    # TAB 3: FACEBOOK VIDEO -> LLM ANALYSIS
+    # =========================================================================
+    with tab_video:
+        st.markdown("### 🎬 Phân Tích Video Facebook Bằng AI")
+        st.markdown(
+            "Dán link **video Facebook công khai**. Hệ thống tải video về, gửi cho Gemini kèm "
+            "instruction bên dưới và hiển thị kết quả để bạn **copy 1 click**."
+        )
+
+        if "video_instruction" not in st.session_state:
+            st.session_state["video_instruction"] = load_default_instruction()
+
+        with st.form("video_form"):
+            video_url = st.text_input(
+                "🔗 Link video Facebook:",
+                placeholder="https://www.facebook.com/watch/?v=1234567890 hoặc https://fb.watch/xxxx/",
+            )
+            with st.expander("📝 Instruction gửi cho AI (bấm để xem / sửa)", expanded=False):
+                instruction_text = st.text_area(
+                    "Instruction:",
+                    value=st.session_state["video_instruction"],
+                    height=320,
+                    label_visibility="collapsed",
+                    help="Mặc định đọc từ prompts/video_instruction.txt trên server. Sửa ở đây chỉ áp dụng cho phiên này.",
+                )
+            submit_video_btn = st.form_submit_button("🚀 PHÂN TÍCH VIDEO", type="primary")
+
+        if submit_video_btn:
+            st.session_state["video_instruction"] = instruction_text
+            if not video_url.strip():
+                st.warning("⚠️ Vui lòng dán link video Facebook.")
+            elif not is_facebook_url(video_url):
+                st.warning("⚠️ Link phải thuộc facebook.com hoặc fb.watch.")
+            elif not instruction_text.strip():
+                st.warning("⚠️ Instruction đang trống.")
+            else:
+                status_box = st.status("Đang xử lý...", expanded=True)
+                try:
+                    with status_box:
+                        result = analyze_facebook_video(
+                            video_url,
+                            instruction_text,
+                            status_callback=lambda m: st.write(m),
+                        )
+                    status_box.update(label="✅ Hoàn thành!", state="complete", expanded=False)
+                    st.session_state["video_result"] = result
+                except VideoAnalyzerError as e:
+                    status_box.update(label="❌ Lỗi", state="error", expanded=True)
+                    st.error(str(e))
+                    st.session_state.pop("video_result", None)
+                except Exception as e:
+                    status_box.update(label="❌ Lỗi", state="error", expanded=True)
+                    st.error(f"Lỗi không mong muốn: {type(e).__name__}: {e}")
+                    st.session_state.pop("video_result", None)
+
+        if st.session_state.get("video_result"):
+            res = st.session_state["video_result"]
+            st.markdown("---")
+            c1, c2, c3, c4 = st.columns(4)
+            c1.metric("Model", res.get("model", DEFAULT_MODEL))
+            c2.metric("Thời gian", f"{res.get('elapsed_s', 0)}s")
+            c3.metric("Video", f"{res.get('video_size_mb', 0)} MB")
+            tok = res.get("prompt_tokens")
+            c4.metric("Tokens vào/ra", f"{tok or '-'} / {res.get('output_tokens') or '-'}")
+            st.caption(f"Nguồn: {res.get('url', '')}")
+
+            st.download_button(
+                label="⬇️ TẢI KẾT QUẢ .TXT",
+                data=res["text"],
+                file_name=f"video_analysis_{int(time.time())}.txt",
+                mime="text/plain",
+                use_container_width=True,
+            )
+            st.caption("👉 Bấm icon Copy ở góc trên bên phải khung dưới đây để sao chép toàn bộ kết quả:")
+            st.code(res["text"], language="text")
 
 
 if __name__ == "__main__":
