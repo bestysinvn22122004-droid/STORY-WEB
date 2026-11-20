@@ -278,6 +278,12 @@ def _upload_image(sess, csrf: str, data: bytes, mime: str, name: str) -> str:
     return file_url
 
 
+def upload_image(data: bytes, mime: str, name: str = "cover") -> str:
+    """Logs in and uploads one image; returns its public URL."""
+    sess, csrf = _admin_login()
+    return _upload_image(sess, csrf, data, mime, name)
+
+
 def _publish_via_session(title, chapters, intro, series_id, feature_image, category_id,
                          image_data=None, status_callback=None) -> dict:
     """Same payload the admin form sends to POST /admin/api/v1/posts/chapter-batch."""
