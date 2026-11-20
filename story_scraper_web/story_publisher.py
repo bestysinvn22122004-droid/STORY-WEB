@@ -335,7 +335,7 @@ def publish_story(title: str, text: str, intro: str = "", series_id: Optional[in
     return {
         "title": title,
         "chapters": len(chapters),
-        "posts": [{"id": p.get("id"), "slug": p.get("slug"), "link": p.get("link") or p.get("url"),
+        "posts": [{"id": p.get("id"), "slug": p.get("slug"), "link": p.get("link") or p.get("url") or (f"{SITE_URL}/blog/{p['slug']}" if p.get("slug") else None),
                    "title": p.get("title")} for p in posts],
         "series_url": f"{SITE_URL}/admin/series",
         "raw": data,
