@@ -119,33 +119,46 @@ Portrait orientation, aspect ratio {aspect}. Do not render any text, letters, ca
 # ---------------------------------------------------------------------------
 # Cloudflare Workers AI cover (title -> scene prompt -> FLUX -> crop to 3:4)
 # ---------------------------------------------------------------------------
-SCENE_PROMPT = """Turn this story title into ONE image-generation prompt (80-110 words) for a single candid, photorealistic photograph that illustrates the story's key moment.
+SCENE_PROMPT = """You are an art director choosing the cover photo for a story. Write ONE image-generation prompt (90-120 words) for a single candid, photorealistic photograph.
 
-Write it like a photo brief, in this order:
+Step 1 (think silently): from the story excerpt, pick the ONE most gripping visual moment - the confrontation, reveal or rescue the title promises. Use the real details from the story: who the characters are (age, gender, ethnicity if stated, job, clothing), the exact place, the key object, the time of day and weather. If no excerpt is given, infer the most likely scene from the title.
+
+Step 2: write the prompt like a photo brief, in this order:
 1. Shot type and place: e.g. "Candid editorial photograph inside ..." with time of day.
-2. Each person separately, with their position in the frame (center / left / right / background): age, clothing, posture, facial expression, what they are doing. Maximum three people; animals count.
-3. Lighting and camera: light source, mood, "shallow depth of field, 50mm lens, natural skin texture, realistic hands, vertical portrait framing".
+2. Each person separately, with their position in the frame (center / left / right / background): age, clothing, posture, facial expression, what they are doing. Maximum three people; animals count. The main character is in the center.
+3. The key object of the story if there is one, and where it is.
+4. Lighting and camera: light source, mood, "shallow depth of field, 50mm lens, natural skin texture, realistic hands, vertical portrait framing".
 
 Rules:
-- Only what is visible. No names, no dialogue, no backstory, no abstract words.
-- The emotional reaction named in the title must be readable on the faces.
+- Only what is visible. No character names, no dialogue, no backstory, no abstract words.
+- The emotion of the moment must be readable on the faces.
 - Family-friendly wording: no words like death, kill, blood, weapon, naked. Imply danger through expressions and atmosphere.
 - Do NOT quote the title and do NOT ask for any text, sign, caption or logo.
-{extra}- Output only the prompt, one paragraph.
+{extra}- Output only the final prompt, one paragraph, nothing else.
 
-Story title: {title}"""
+Story title: {title}
+{excerpt}"""
 
 SAFER_RULE = ("- A safety filter rejected the previous attempt. Do not mention babies, infants, children, bodies, "
               "pregnancy, injuries or peril; show only adults and/or animals in a calm but tense moment.\n")
 
+EXCERPT_WORDS = int(os.environ.get("COVER_STORY_WORDS", "1200"))
 
-def title_to_scene(title: str, safer: bool = False) -> str:
+
+def _excerpt(story_text: str) -> str:
+    words = (story_text or "").split()
+    if not words:
+        return ""
+    return "\nStory excerpt (opening):\n" + " ".join(words[:EXCERPT_WORDS])
+
+
+def title_to_scene(title: str, safer: bool = False, story_text: str = "") -> str:
     from google.genai import types
 
     def call(client):
         resp = client.models.generate_content(
             model=TEXT_MODEL,
-            contents=SCENE_PROMPT.format(title=title, extra=SAFER_RULE if safer else ""),
+            contents=SCENE_PROMPT.format(title=title, extra=SAFER_RULE if safer else "", excerpt=_excerpt(story_text)),
             config=types.GenerateContentConfig(temperature=0.7),
         )
         return resp.text or ""
@@ -211,11 +224,15 @@ class _NSFWRejected(Exception):
     pass
 
 
-def _cover_via_cloudflare(title: str) -> Tuple[bytes, str]:
+LAST_SCENE_PROMPT = {"text": ""}  # the scene prompt behind the most recent cover (for display)
+
+
+def _cover_via_cloudflare(title: str, story_text: str = "") -> Tuple[bytes, str]:
     suffix = " No text, no captions, no watermark."
     last = ""
     for attempt in range(3):
-        scene = title_to_scene(title, safer=attempt > 0)
+        scene = title_to_scene(title, safer=attempt > 0, story_text=story_text)
+        LAST_SCENE_PROMPT["text"] = scene
         try:
             try:
                 raw = _cloudflare_image(scene + suffix)
@@ -229,13 +246,13 @@ def _cover_via_cloudflare(title: str) -> Tuple[bytes, str]:
     raise LLMToolError(f"Bộ lọc nội dung của Cloudflare từ chối cả 3 lần thử. ({last[:120]})")
 
 
-def generate_cover_image(title: str, model: Optional[str] = None) -> Tuple[bytes, str]:
+def generate_cover_image(title: str, model: Optional[str] = None, story_text: str = "") -> Tuple[bytes, str]:
     """Returns (bytes, mime_type) of a portrait cover image for the title."""
     title = " ".join((title or "").split())
     if not title:
         raise LLMToolError("Tiêu đề trống.")
     if CF_ACCOUNT_ID and CF_AI_TOKEN and not model:
-        return _cover_via_cloudflare(title)
+        return _cover_via_cloudflare(title, story_text)
     from google.genai import types
     model = model or IMAGE_MODEL
     prompt = IMAGE_PROMPT.format(title=title, aspect=IMAGE_ASPECT)

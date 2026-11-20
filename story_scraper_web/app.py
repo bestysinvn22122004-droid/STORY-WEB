@@ -123,8 +123,10 @@ def publish_scraped(item: dict, write=None, with_image: bool = False) -> None:
         try:
             if write:
                 write("🎨 Đang tạo ảnh bìa 3x4 từ tiêu đề...")
-            image_data = llm_tools.generate_cover_image(title)
+            story_text = "\n\n".join(item.get("paragraphs") or []) or item.get("formatted_chapters_text", "")
+            image_data = llm_tools.generate_cover_image(title, story_text=story_text)
             item["cover_image"] = image_data
+            item["cover_prompt"] = llm_tools.LAST_SCENE_PROMPT.get("text", "")
         except Exception as e:
             item["cover_error"] = str(e)
             if write:
@@ -157,6 +159,9 @@ def render_publish_box(item: dict, key: str) -> None:
         st.success(msg)
         if item.get("cover_image"):
             st.image(item["cover_image"][0], caption="Ảnh bìa đã tạo", width=240)
+            if item.get("cover_prompt"):
+                with st.expander("Prompt tạo ảnh (Gemini viết từ nội dung truyện)"):
+                    st.code(item["cover_prompt"], language="text")
         elif item.get("cover_error"):
             st.warning(f"⚠️ Đăng không có ảnh bìa: {item['cover_error']}")
         return
