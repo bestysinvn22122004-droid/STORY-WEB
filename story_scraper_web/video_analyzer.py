@@ -139,7 +139,7 @@ def _get_client(api_key: str):
         from google.genai import types
     except ImportError:
         raise VideoAnalyzerError("Chưa cài thư viện google-genai trên server.")
-    return genai.Client(api_key=api_key, http_options=types.HttpOptions(timeout=TIMEOUT_S * 1000))
+    return genai.Client(api_key=api_key, http_options=types.HttpOptions(api_version="v1beta", timeout=TIMEOUT_S * 1000))
 
 
 def _is_overloaded_error(exc: Exception) -> bool:
