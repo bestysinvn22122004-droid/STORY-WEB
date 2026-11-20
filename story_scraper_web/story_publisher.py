@@ -12,7 +12,11 @@ marker becomes one chapter post.  So one request = one series + N chapters.
 
 Configuration (environment variables):
     STORY_SITE_URL          required - e.g. https://example.com (no trailing /api)
-    STORY_SITE_TOKEN        required - API token (sent as Bearer)
+    STORY_SITE_TOKEN        API token (sent as Bearer) for the public /api
+    STORY_SITE_EMAIL        admin login e-mail  } when both are set the admin
+    STORY_SITE_PASSWORD     admin login password} session API is used instead
+                            (/admin/api/v1/posts/chapter-batch), same call the
+                            admin "Create post > Chapter" form makes
     STORY_SITE_CATEGORY_ID  optional - default category id for new posts
     STORY_SITE_AUTHOR       optional - username on the site to credit as author
     STORY_SITE_TIMEOUT_S    optional - HTTP timeout per request (default 120)
@@ -31,6 +35,8 @@ from story_scraper import UniversalStoryScraper
 
 SITE_URL = os.environ.get("STORY_SITE_URL", "").strip().rstrip("/")
 SITE_TOKEN = os.environ.get("STORY_SITE_TOKEN", "").strip()
+SITE_EMAIL = os.environ.get("STORY_SITE_EMAIL", "").strip()
+SITE_PASSWORD = os.environ.get("STORY_SITE_PASSWORD", "")
 SITE_CATEGORY_ID = os.environ.get("STORY_SITE_CATEGORY_ID", "").strip()
 SITE_AUTHOR = os.environ.get("STORY_SITE_AUTHOR", "").strip()
 TIMEOUT_S = int(os.environ.get("STORY_SITE_TIMEOUT_S", "120"))
@@ -43,8 +49,12 @@ class PublishError(Exception):
     """User-facing error (safe to show in the UI)."""
 
 
+def use_session() -> bool:
+    return bool(SITE_URL and SITE_EMAIL and SITE_PASSWORD)
+
+
 def is_configured() -> bool:
-    return bool(SITE_URL and SITE_TOKEN)
+    return bool(SITE_URL and (SITE_TOKEN or use_session()))
 
 
 def site_name() -> str:
@@ -191,6 +201,75 @@ def check_connection() -> dict:
     return _request("GET", "/categories", params={"page": 1})
 
 
+
+# ---------------------------------------------------------------------------
+# Admin session API (login with e-mail + password, like the admin UI)
+# ---------------------------------------------------------------------------
+_CSRF_INPUT_RE = re.compile(r'name="_token"[^>]*value="([^"]+)"|value="([^"]+)"[^>]*name="_token"')
+_CSRF_META_RE = re.compile(r'<meta[^>]+name="csrf-token"[^>]+content="([^"]+)"')
+
+
+def _admin_login() -> tuple:
+    """Returns (requests.Session, csrf_token) for an authenticated admin session."""
+    sess = requests.Session()
+    sess.headers["User-Agent"] = "story-scraper-publisher/1.0"
+    try:
+        page = sess.get(f"{SITE_URL}/login", timeout=TIMEOUT_S)
+        m = _CSRF_INPUT_RE.search(page.text)
+        if not m:
+            raise PublishError("Không đọc được form đăng nhập của web truyện.")
+        resp = sess.post(f"{SITE_URL}/login", timeout=TIMEOUT_S, allow_redirects=True, data={
+            "_token": m.group(1) or m.group(2), "email": SITE_EMAIL, "password": SITE_PASSWORD, "remember": "on",
+        })
+        if resp.url.rstrip("/").endswith("/login"):
+            raise PublishError("Đăng nhập web truyện thất bại: sai email hoặc mật khẩu (STORY_SITE_EMAIL / STORY_SITE_PASSWORD).")
+        admin = sess.get(f"{SITE_URL}/admin/series", timeout=TIMEOUT_S)
+        meta = _CSRF_META_RE.search(admin.text)
+        if admin.url.rstrip("/").endswith("/login") or not meta:
+            raise PublishError("Đăng nhập xong nhưng không vào được trang admin.")
+    except requests.RequestException as exc:
+        raise PublishError(f"Không kết nối được tới {site_name()}: {exc}")
+    return sess, html.unescape(meta.group(1))
+
+
+def _admin_request(sess, csrf: str, method: str, path: str, **kwargs) -> dict:
+    headers = {"Accept": "application/json", "X-Requested-With": "XMLHttpRequest", "X-CSRF-TOKEN": csrf}
+    try:
+        resp = sess.request(method, f"{SITE_URL}/admin/api/v1{path}", headers=headers, timeout=TIMEOUT_S, **kwargs)
+    except requests.RequestException as exc:
+        raise PublishError(f"Không kết nối được tới {site_name()}: {exc}")
+    if not resp.ok:
+        raise PublishError(_explain_error(resp))
+    try:
+        body = resp.json()
+    except ValueError:
+        raise PublishError("Web truyện trả về dữ liệu không phải JSON (có thể phiên đăng nhập hết hạn).")
+    if isinstance(body, dict) and body.get("ok") is False:
+        raise PublishError(f"Web truyện báo lỗi: {body.get('message')}")
+    return body
+
+
+def _publish_via_session(title, chapters, intro, series_id, feature_image, category_id) -> dict:
+    """Same payload the admin form sends to POST /admin/api/v1/posts/chapter-batch."""
+    sess, csrf = _admin_login()
+    intro_html = "".join(f"<p>{html.escape(l.strip())}</p>" for l in (intro or "").splitlines() if l.strip())
+    payload = {
+        "title": title, "slug": "", "image": feature_image or "", "description": intro_html,
+        "seo_title": "", "seo_description": "", "seo_keywords": "",
+        "selected_categories": [int(category_id)] if category_id else [],
+        "selected_tags": [],
+        "is_active": True, "is_home": True, "is_top": True,
+        "series_id": int(series_id) if series_id else None,
+        "prev_chapter": None, "next_chapter": None,
+        "skip_intro": True,
+        "chapters": [{
+            "title": ch["chapter_title"], "slug": "",
+            "description": "".join(f"<p>{html.escape(p)}</p>" for p in ch["paragraphs"]),
+            "image": feature_image or "",
+        } for ch in chapters],
+    }
+    return _admin_request(sess, csrf, "POST", "/posts/chapter-batch", json=payload)
+
 # ---------------------------------------------------------------------------
 # Publish
 # ---------------------------------------------------------------------------
@@ -245,7 +324,12 @@ def publish_story(title: str, text: str, intro: str = "", series_id: Optional[in
     chapters = payload.pop("_chapters")
     _log(status_callback, f"📦 {len(chapters)} chương, {sum(len(' '.join(c['paragraphs']).split()) for c in chapters):,} từ.")
     _log(status_callback, f"📤 Đang gửi lên {site_name()}...")
-    data = _request("POST", "/posts", data=json.dumps(payload, ensure_ascii=False).encode("utf-8"))
+    if use_session():
+        _log(status_callback, "🔐 Đăng nhập admin...")
+        data = _publish_via_session(title, chapters, intro, series_id, feature_image,
+                                    payload.get("category"))
+    else:
+        data = _request("POST", "/posts", data=json.dumps(payload, ensure_ascii=False).encode("utf-8"))
     posts = _extract_posts(data)
     _log(status_callback, f"✅ Web đã tạo {len(posts)} bài.")
     return {
@@ -253,6 +337,7 @@ def publish_story(title: str, text: str, intro: str = "", series_id: Optional[in
         "chapters": len(chapters),
         "posts": [{"id": p.get("id"), "slug": p.get("slug"), "link": p.get("link") or p.get("url"),
                    "title": p.get("title")} for p in posts],
+        "series_url": f"{SITE_URL}/admin/series",
         "raw": data,
     }
 

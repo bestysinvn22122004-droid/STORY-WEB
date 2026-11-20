@@ -504,7 +504,7 @@ def main():
             # ----- Publish to the story site ---------------------------------
             st.markdown("---")
             if not publisher.is_configured():
-                st.info("📤 Chưa cấu hình web truyện (STORY_SITE_URL / STORY_SITE_TOKEN trên server) nên chưa đẩy được.")
+                st.info("📤 Chưa cấu hình web truyện (STORY_SITE_URL + tài khoản hoặc token trên server) nên chưa đẩy được.")
             else:
                 result_key = f"{res.get('url', '')}|{len(res['text'])}"
                 if st.session_state.get("publish_seed") != result_key:
@@ -547,6 +547,7 @@ def main():
                                 st.markdown(f"- [{p.get('title') or p.get('slug')}]({p['link']})")
                             else:
                                 st.markdown(f"- {p.get('title') or p.get('slug') or p.get('id')}")
+                        st.markdown(f"[Mở trang quản lý series]({already.get('series_url', '')})")
                         label, kind = "🔁 ĐẨY LẠI (tạo bản mới)", "secondary"
                     else:
                         label, kind = "📤 ĐẨY LÊN WEB TRUYỆN", "primary"
