@@ -87,6 +87,11 @@ def guess_title(text: str) -> str:
     return ""
 
 
+def retitle_chapters(chapters: List[dict], story_title: str) -> List[dict]:
+    """Copies chapter dicts with titles rebuilt as CHAPTER N - STORY TITLE."""
+    return [dict(ch, chapter_title=f"CHAPTER {i} - {story_title.upper()}") for i, ch in enumerate(chapters, 1)]
+
+
 def has_chapter_markers(text: str) -> bool:
     return any(CHAPTER_MARKER_RE.match(l) for l in (text or "").splitlines())
 
@@ -249,9 +254,41 @@ def _admin_request(sess, csrf: str, method: str, path: str, **kwargs) -> dict:
     return body
 
 
-def _publish_via_session(title, chapters, intro, series_id, feature_image, category_id) -> dict:
+def _upload_image(sess, csrf: str, data: bytes, mime: str, name: str) -> str:
+    """Uploads through the admin presigned-URL flow and returns the public file URL."""
+    ext = {"image/jpeg": "jpg", "image/png": "png", "image/webp": "webp"}.get(mime, "png")
+    body = _admin_request(sess, csrf, "POST", "/uploads/presigned-image-url", json={
+        "fileName": f"{name}.{ext}", "contentType": mime, "size": len(data),
+    })
+    info = body.get("data") if isinstance(body.get("data"), dict) else body
+    upload, file_url = (info or {}).get("upload") or {}, (info or {}).get("fileUrl")
+    if not upload.get("url") or not file_url:
+        raise PublishError("Web truyện không trả về địa chỉ upload ảnh.")
+    headers = dict(upload.get("headers") or {})
+    headers.setdefault("Content-Type", mime)
+    try:
+        if upload.get("fields"):  # S3-style POST form
+            resp = requests.post(upload["url"], data=upload["fields"], files={"file": (f"{name}.{ext}", data, mime)}, timeout=TIMEOUT_S)
+        else:
+            resp = requests.request(upload.get("method") or "PUT", upload["url"], data=data, headers=headers, timeout=TIMEOUT_S)
+    except requests.RequestException as exc:
+        raise PublishError(f"Upload ảnh thất bại: {exc}")
+    if not resp.ok:
+        raise PublishError(f"Upload ảnh thất bại (HTTP {resp.status_code}).")
+    return file_url
+
+
+def _publish_via_session(title, chapters, intro, series_id, feature_image, category_id,
+                         image_data=None, status_callback=None) -> dict:
     """Same payload the admin form sends to POST /admin/api/v1/posts/chapter-batch."""
     sess, csrf = _admin_login()
+    if image_data and not feature_image:
+        try:
+            slug = re.sub(r"[^a-z0-9]+", "-", title.lower()).strip("-")[:60] or "cover"
+            feature_image = _upload_image(sess, csrf, image_data[0], image_data[1], slug)
+            _log(status_callback, "🖼️ Đã upload ảnh bìa.")
+        except PublishError as exc:
+            _log(status_callback, f"⚠️ Bỏ qua ảnh bìa: {exc}")
     intro_html = "".join(f"<p>{html.escape(l.strip())}</p>" for l in (intro or "").splitlines() if l.strip())
     payload = {
         "title": title, "slug": "", "image": feature_image or "", "description": intro_html,
@@ -315,7 +352,8 @@ def _extract_posts(data) -> List[dict]:
 
 def publish_story(title: str, text: str, intro: str = "", series_id: Optional[int] = None,
                   feature_image: str = "", category_id: Optional[int] = None,
-                  status_callback=None, chapters: Optional[List[dict]] = None) -> dict:
+                  status_callback=None, chapters: Optional[List[dict]] = None,
+                  image_data: Optional[tuple] = None) -> dict:
     """
     Creates series + chapters in one request. Returns
     {"chapters": N, "posts": [{id, slug, link, title}], "raw": response}.
@@ -327,7 +365,7 @@ def publish_story(title: str, text: str, intro: str = "", series_id: Optional[in
     if use_session():
         _log(status_callback, "🔐 Đăng nhập admin...")
         data = _publish_via_session(title, chapters, intro, series_id, feature_image,
-                                    payload.get("category"))
+                                    payload.get("category"), image_data, status_callback)
     else:
         data = _request("POST", "/posts", data=json.dumps(payload, ensure_ascii=False).encode("utf-8"))
     posts = _extract_posts(data)

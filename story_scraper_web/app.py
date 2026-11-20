@@ -11,6 +11,7 @@ from video_analyzer import (
     load_saved_instructions, save_instruction, delete_instruction,
 )
 import story_publisher as publisher
+import llm_tools
 
 # =========================================================================
 # CONFIGURATION & PAGE SETUP
@@ -89,12 +90,49 @@ def create_zip_archive(stories_results: list) -> bytes:
 AUTO_PUBLISH_LABEL = "📤 Tự đăng lên web truyện sau khi cào xong"
 
 
-def publish_scraped(item: dict, write=None) -> None:
+def add_paraphrased_title(item: dict, write=None) -> None:
+    """Asks the LLM for a reworded title and stores it on the scraped item."""
+    if not llm_tools.is_configured():
+        return
+    try:
+        item["paraphrased_title"] = llm_tools.paraphrase_title(item["title"])
+        if write:
+            write(f"✍️ Tiêu đề viết lại: {item['paraphrased_title']}")
+    except Exception as e:
+        item["paraphrase_error"] = str(e)
+        if write:
+            write(f"⚠️ Không viết lại được tiêu đề: {e}")
+
+
+def render_paraphrased_title(item: dict) -> None:
+    if item.get("paraphrased_title"):
+        st.markdown("**✍️ Tiêu đề đã paraphrase:**")
+        st.code(item["paraphrased_title"], language="text")
+    elif item.get("paraphrase_error"):
+        st.warning(f"⚠️ Không paraphrase được tiêu đề: {item['paraphrase_error']}")
+
+
+def publish_scraped(item: dict, write=None, with_image: bool = False) -> None:
     """Publishes a scraped story (already chunked) and records the outcome on the item."""
+    title = item.get("paraphrased_title") or item["title"]
+    chapters = item.get("chapter_chunks") or None
+    if chapters and item.get("paraphrased_title"):
+        chapters = publisher.retitle_chapters(chapters, title)
+    image_data = None
+    if with_image:
+        try:
+            if write:
+                write("🎨 Đang tạo ảnh bìa 3x4 từ tiêu đề...")
+            image_data = llm_tools.generate_cover_image(title)
+            item["cover_image"] = image_data
+        except Exception as e:
+            item["cover_error"] = str(e)
+            if write:
+                write(f"⚠️ Không tạo được ảnh bìa, đăng không ảnh: {e}")
     try:
         out = publisher.publish_story(
-            item["title"], item.get("formatted_chapters_text", ""),
-            chapters=item.get("chapter_chunks") or None, status_callback=write,
+            title, item.get("formatted_chapters_text", ""),
+            chapters=chapters, status_callback=write, image_data=image_data,
         )
         item["publish"] = {"ok": True, "chapters": out["chapters"], "posts": out["posts"],
                            "series_url": out.get("series_url", "")}
@@ -117,6 +155,10 @@ def render_publish_box(item: dict, key: str) -> None:
         if pub.get("series_url"):
             msg += f" · [Quản lý series]({pub['series_url']})"
         st.success(msg)
+        if item.get("cover_image"):
+            st.image(item["cover_image"][0], caption="Ảnh bìa đã tạo", width=240)
+        elif item.get("cover_error"):
+            st.warning(f"⚠️ Đăng không có ảnh bìa: {item['cover_error']}")
         return
     if pub and not pub.get("ok"):
         st.error(f"❌ Đăng lên web thất bại: {pub['error']}")
@@ -211,8 +253,9 @@ def main():
                             words_per_chapter=words_per_chapter,
                             status_callback=lambda msg: status_box.write(msg)
                         )
+                        add_paraphrased_title(result, write=lambda msg: status_box.write(msg))
                         if auto_publish_single:
-                            publish_scraped(result, write=lambda msg: status_box.write(msg))
+                            publish_scraped(result, write=lambda msg: status_box.write(msg), with_image=True)
                         status_box.update(
                             label=f"🎉 Hoàn thành! Đã tạo {result['total_chapters']} Chapter ({result['total_words']:,} từ)!",
                             state="complete"
@@ -228,6 +271,7 @@ def main():
             st.markdown("---")
             st.subheader(f"📖 {res['title']}")
             st.caption(f"Nguồn: [{res['url']}]({res['url']})")
+            render_paraphrased_title(res)
 
             # Stat cards
             col1, col2, col3, col4 = st.columns(4)
@@ -336,9 +380,10 @@ def main():
                             words_per_chapter=words_per_chapter
                         )
                         res["status"] = "success"
+                        add_paraphrased_title(res)
                         if auto_publish_batch:
-                            status_text.markdown(f"**[{idx}/{len(urls)}]** Đang đăng lên web: `{res['title']}`...")
-                            publish_scraped(res)
+                            status_text.markdown(f"**[{idx}/{len(urls)}]** Đang tạo ảnh và đăng lên web: `{res['title']}`...")
+                            publish_scraped(res, with_image=True)
                         batch_results.append(res)
                     except Exception as e:
                         batch_results.append({
@@ -382,6 +427,7 @@ def main():
                 if item.get("status") == "success":
                     with st.expander(f"✅ #{i}: {item['title']} — {item['total_chapters']} Chapters ({item['total_words']:,} từ)"):
                         st.caption(f"Nguồn: {item['url']}")
+                        render_paraphrased_title(item)
                         render_publish_box(item, key=f"publish_batch_{i}")
                         c1, c2 = st.columns([1, 3])
                         with c1:
