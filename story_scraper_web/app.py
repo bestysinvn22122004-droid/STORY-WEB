@@ -10,6 +10,7 @@ from video_analyzer import (
     VideoAnalyzerError, DEFAULT_MODEL, available_models,
     load_saved_instructions, save_instruction, delete_instruction,
 )
+import story_publisher as publisher
 
 # =========================================================================
 # CONFIGURATION & PAGE SETUP
@@ -499,6 +500,80 @@ def main():
             )
             st.caption("👉 Bấm icon Copy ở góc trên bên phải khung dưới đây để sao chép toàn bộ kết quả:")
             st.code(res["text"], language="text")
+
+            # ----- Publish to the story site ---------------------------------
+            st.markdown("---")
+            if not publisher.is_configured():
+                st.info("📤 Chưa cấu hình web truyện (STORY_SITE_URL / STORY_SITE_TOKEN trên server) nên chưa đẩy được.")
+            else:
+                result_key = f"{res.get('url', '')}|{len(res['text'])}"
+                if st.session_state.get("publish_seed") != result_key:
+                    # new analysis result -> reseed the publish form
+                    st.session_state["publish_seed"] = result_key
+                    st.session_state["publish_title"] = publisher.guess_title(res["text"])
+                    st.session_state["publish_intro"] = ""
+                    st.session_state["publish_series_id"] = ""
+                    st.session_state.pop("publish_result", None)
+
+                with st.expander(f"📤 Đẩy lên web truyện ({publisher.site_name()})", expanded=True):
+                    col_t, col_s = st.columns([3, 1])
+                    with col_t:
+                        pub_title = st.text_input("📖 Tên truyện / series:", key="publish_title")
+                    with col_s:
+                        pub_series_id = st.text_input(
+                            "ID series có sẵn (tuỳ chọn):", key="publish_series_id",
+                            help="Để trống để web tự tạo series mới từ tên truyện. Điền ID để thêm chương vào series đã có.",
+                        )
+                    pub_intro = st.text_area(
+                        "Mô tả series (tuỳ chọn, hiện trước Chapter 1):", key="publish_intro", height=80,
+                    )
+                    try:
+                        preview = publisher.split_into_chapters(res["text"], pub_title or "")
+                        n_words = sum(len(" ".join(c["paragraphs"]).split()) for c in preview)
+                        st.caption(
+                            f"Sẽ tạo **{len(preview)} chương** (~{n_words:,} từ). "
+                            + ("Nội dung đã có sẵn marker CHAPTER nên giữ nguyên cách chia." if publisher.has_chapter_markers(res["text"])
+                               else f"Chia tự động ~{publisher.CHAPTER_WORDS} từ/chương, tiêu đề dạng CHAPTER X - TÊN TRUYỆN.")
+                        )
+                    except Exception as e:
+                        preview = []
+                        st.warning(f"Không xem trước được: {e}")
+
+                    already = st.session_state.get("publish_result")
+                    if already:
+                        st.success(f"✅ Đã đẩy lên: {already['chapters']} chương.")
+                        for p in already["posts"]:
+                            if p.get("link"):
+                                st.markdown(f"- [{p.get('title') or p.get('slug')}]({p['link']})")
+                            else:
+                                st.markdown(f"- {p.get('title') or p.get('slug') or p.get('id')}")
+                        label, kind = "🔁 ĐẨY LẠI (tạo bản mới)", "secondary"
+                    else:
+                        label, kind = "📤 ĐẨY LÊN WEB TRUYỆN", "primary"
+
+                    if st.button(label, type=kind, use_container_width=True, disabled=not preview):
+                        if not (pub_title or "").strip():
+                            st.warning("⚠️ Nhập tên truyện trước.")
+                        elif pub_series_id.strip() and not pub_series_id.strip().isdigit():
+                            st.warning("⚠️ ID series phải là số.")
+                        else:
+                            pub_box = st.status("Đang đẩy lên web truyện...", expanded=True)
+                            try:
+                                with pub_box:
+                                    pub_res = publisher.publish_story(
+                                        pub_title, res["text"], intro=pub_intro,
+                                        series_id=int(pub_series_id) if pub_series_id.strip() else None,
+                                        status_callback=lambda m: st.write(m),
+                                    )
+                                pub_box.update(label="✅ Đã đẩy xong!", state="complete", expanded=False)
+                                st.session_state["publish_result"] = pub_res
+                                st.rerun()
+                            except publisher.PublishError as e:
+                                pub_box.update(label="❌ Lỗi", state="error", expanded=True)
+                                st.error(str(e))
+                            except Exception as e:
+                                pub_box.update(label="❌ Lỗi", state="error", expanded=True)
+                                st.error(f"Lỗi không mong muốn: {type(e).__name__}: {e}")
 
 
 if __name__ == "__main__":
