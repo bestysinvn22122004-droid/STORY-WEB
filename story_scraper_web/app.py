@@ -7,7 +7,7 @@ import streamlit as st
 from story_scraper import UniversalStoryScraper
 from video_analyzer import (
     analyze_facebook_video, load_default_instruction, is_facebook_url,
-    VideoAnalyzerError, DEFAULT_MODEL,
+    VideoAnalyzerError, DEFAULT_MODEL, available_models,
 )
 
 # =========================================================================
@@ -355,10 +355,19 @@ def main():
             st.session_state["video_instruction"] = load_default_instruction()
 
         with st.form("video_form"):
-            video_url = st.text_input(
-                "🔗 Link video Facebook:",
-                placeholder="https://www.facebook.com/watch/?v=1234567890 hoặc https://fb.watch/xxxx/",
-            )
+            col_url, col_model = st.columns([3, 1])
+            with col_url:
+                video_url = st.text_input(
+                    "🔗 Link video Facebook:",
+                    placeholder="https://www.facebook.com/watch/?v=1234567890 hoặc https://fb.watch/xxxx/",
+                )
+            with col_model:
+                video_model = st.selectbox(
+                    "🧠 Model:",
+                    options=available_models(),
+                    index=0,
+                    help="Mặc định là model ổn định nhất. Nếu model chọn quá tải (503/504), hệ thống tự chuyển sang model dự phòng.",
+                )
             with st.expander("📝 Instruction gửi cho AI (bấm để xem / sửa)", expanded=False):
                 instruction_text = st.text_area(
                     "Instruction:",
@@ -384,6 +393,7 @@ def main():
                         result = analyze_facebook_video(
                             video_url,
                             instruction_text,
+                            model=video_model,
                             status_callback=lambda m: st.write(m),
                         )
                     status_box.update(label="✅ Hoàn thành!", state="complete", expanded=False)

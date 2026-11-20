@@ -9,6 +9,9 @@ Configuration (environment variables):
     GEMINI_API_KEYS       optional - comma-separated extra keys, tried in order on quota errors
     VIDEO_INSTRUCTION_FILE optional - path of the default instruction (default prompts/video_instruction.txt)
     GEMINI_MODEL          optional - default "gemini-2.5-flash"
+    GEMINI_MODELS         optional - comma-separated list offered in the UI selector
+    GEMINI_FALLBACK_MODEL optional - used when the chosen model returns 503/504 (overloaded)
+    GEMINI_TIMEOUT_S      optional - per-request HTTP timeout in seconds (default 300)
     VIDEO_MAX_MB          optional - reject downloads above this size (default 200)
     VIDEO_MAX_SECONDS     optional - reject videos longer than this (default 1800)
     VIDEO_TMP_DIR         optional - where downloads land (default <this dir>/tmp_videos)
@@ -27,6 +30,16 @@ BASE_DIR = Path(__file__).resolve().parent
 PROMPT_FILE = Path(os.environ.get("VIDEO_INSTRUCTION_FILE", BASE_DIR / "prompts" / "video_instruction.txt"))
 
 DEFAULT_MODEL = os.environ.get("GEMINI_MODEL", "gemini-2.5-flash")
+FALLBACK_MODEL = os.environ.get("GEMINI_FALLBACK_MODEL", "").strip()
+TIMEOUT_S = int(os.environ.get("GEMINI_TIMEOUT_S", "300"))
+
+
+def available_models() -> list:
+    raw = os.environ.get("GEMINI_MODELS", "")
+    models = [m.strip() for m in raw.split(",") if m.strip()]
+    if DEFAULT_MODEL not in models:
+        models.insert(0, DEFAULT_MODEL)
+    return models
 MAX_MB = int(os.environ.get("VIDEO_MAX_MB", "200"))
 MAX_SECONDS = int(os.environ.get("VIDEO_MAX_SECONDS", "1800"))
 TMP_DIR = Path(os.environ.get("VIDEO_TMP_DIR", BASE_DIR / "tmp_videos"))
@@ -123,9 +136,16 @@ def _api_keys() -> list:
 def _get_client(api_key: str):
     try:
         from google import genai
+        from google.genai import types
     except ImportError:
         raise VideoAnalyzerError("Chưa cài thư viện google-genai trên server.")
-    return genai.Client(api_key=api_key)
+    return genai.Client(api_key=api_key, http_options=types.HttpOptions(timeout=TIMEOUT_S * 1000))
+
+
+def _is_overloaded_error(exc: Exception) -> bool:
+    code = getattr(exc, "code", None) or getattr(exc, "status_code", None)
+    msg = str(exc).lower()
+    return code in (503, 504) or "unavailable" in msg or "deadline" in msg or "high demand" in msg or "timed out" in msg
 
 
 def _is_quota_error(exc: Exception) -> bool:
@@ -181,11 +201,24 @@ def _analyze_with_client(client, video_path: Path, instruction: str, model: str 
 
         _log(status_callback, f"🤖 Đang gọi model {model}...")
         t0 = time.time()
-        response = client.models.generate_content(
-            model=model,
-            contents=[uploaded, instruction],
-            config=types.GenerateContentConfig(temperature=0.4),
-        )
+        try:
+            response = client.models.generate_content(
+                model=model,
+                contents=[uploaded, instruction],
+                config=types.GenerateContentConfig(temperature=0.4),
+            )
+        except Exception as exc:
+            if FALLBACK_MODEL and FALLBACK_MODEL != model and _is_overloaded_error(exc):
+                _log(status_callback, f"⚠️ {model} quá tải ({type(exc).__name__}), chuyển sang {FALLBACK_MODEL}...")
+                model = FALLBACK_MODEL
+                t0 = time.time()
+                response = client.models.generate_content(
+                    model=model,
+                    contents=[uploaded, instruction],
+                    config=types.GenerateContentConfig(temperature=0.4),
+                )
+            else:
+                raise
         elapsed = time.time() - t0
         text = (response.text or "").strip()
         if not text:
