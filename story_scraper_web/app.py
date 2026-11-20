@@ -8,6 +8,7 @@ from story_scraper import UniversalStoryScraper
 from video_analyzer import (
     analyze_facebook_video, load_default_instruction, is_facebook_url,
     VideoAnalyzerError, DEFAULT_MODEL, available_models,
+    load_saved_instructions, save_instruction, delete_instruction,
 )
 
 # =========================================================================
@@ -351,35 +352,106 @@ def main():
             "instruction bên dưới và hiển thị kết quả để bạn **copy 1 click**."
         )
 
-        if "video_instruction" not in st.session_state:
-            st.session_state["video_instruction"] = load_default_instruction()
+        NEW_INSTRUCTION = "➕ Instruction mới (bắt đầu từ bản mặc định)"
 
-        with st.form("video_form"):
-            col_url, col_model = st.columns([3, 1])
-            with col_url:
-                video_url = st.text_input(
-                    "🔗 Link video Facebook:",
-                    placeholder="https://www.facebook.com/watch/?v=1234567890 hoặc https://fb.watch/xxxx/",
-                )
-            with col_model:
-                video_model = st.selectbox(
-                    "🧠 Model:",
-                    options=available_models(),
-                    index=0,
-                    help="Mặc định là model ổn định nhất. Nếu model chọn quá tải (503/504), hệ thống tự chuyển sang model dự phòng.",
-                )
-            with st.expander("📝 Instruction gửi cho AI (bấm để xem / sửa)", expanded=False):
-                instruction_text = st.text_area(
-                    "Instruction:",
-                    value=st.session_state["video_instruction"],
-                    height=320,
+        # A save/delete click happens after the selectbox has been drawn, so the
+        # new selection is parked here and applied at the top of the next rerun.
+        pending_choice = st.session_state.pop("_video_instr_pending", None)
+        if pending_choice is not None:
+            st.session_state["video_instr_choice"] = pending_choice
+            st.session_state.pop("_video_instr_loaded", None)
+
+        col_url, col_model = st.columns([3, 1])
+        with col_url:
+            video_url = st.text_input(
+                "🔗 Link video Facebook:",
+                placeholder="https://www.facebook.com/watch/?v=1234567890 hoặc https://fb.watch/xxxx/",
+                key="video_url",
+            )
+        with col_model:
+            video_model = st.selectbox(
+                "🧠 Model:",
+                options=available_models(),
+                index=0,
+                key="video_model",
+                help="Mặc định là model ổn định nhất. Nếu model chọn quá tải (503/504), hệ thống tự chuyển sang model dự phòng.",
+            )
+
+        # ----- Instruction: default toggle / saved library -------------------
+        st.markdown("#### 📝 Instruction gửi cho AI")
+        default_instruction = load_default_instruction()
+        use_default = st.toggle(
+            "Dùng instruction mặc định của hệ thống",
+            value=True,
+            key="video_use_default",
+            help="Bật: dùng bản mặc định trên server. Tắt: chọn một instruction đã lưu hoặc tự soạn / lưu bản mới.",
+        )
+
+        if use_default:
+            instruction_text = default_instruction
+            with st.expander("👁️ Xem instruction mặc định", expanded=False):
+                st.text_area(
+                    "Instruction mặc định:",
+                    value=default_instruction,
+                    height=260,
+                    disabled=True,
                     label_visibility="collapsed",
-                    help="Mặc định đọc từ prompts/video_instruction.txt trên server. Sửa ở đây chỉ áp dụng cho phiên này.",
                 )
-            submit_video_btn = st.form_submit_button("🚀 PHÂN TÍCH VIDEO", type="primary")
+        else:
+            saved = load_saved_instructions()
+            saved_names = list(saved.keys())
+            options = [NEW_INSTRUCTION] + saved_names
+            if st.session_state.get("video_instr_choice") not in options:
+                st.session_state["video_instr_choice"] = NEW_INSTRUCTION
+                st.session_state.pop("_video_instr_loaded", None)
+
+            choice = st.selectbox(
+                "📚 Instruction đã lưu:",
+                options=options,
+                key="video_instr_choice",
+                help=f"Đã lưu {len(saved_names)} instruction. Danh sách dùng chung cho mọi người truy cập web.",
+            )
+            # Reload the editor only when the selection changes, so edits survive reruns.
+            if st.session_state.get("_video_instr_loaded") != choice:
+                st.session_state["video_instr_editor"] = (
+                    default_instruction if choice == NEW_INSTRUCTION else saved.get(choice, "")
+                )
+                st.session_state["_video_instr_loaded"] = choice
+
+            instruction_text = st.text_area(
+                "Nội dung instruction:",
+                key="video_instr_editor",
+                height=320,
+                help="Sửa thoải mái; bấm 💾 Lưu để giữ lại dưới một tên, lần sau chọn lại từ danh sách.",
+            )
+
+            col_name, col_save, col_del = st.columns([3, 1, 1])
+            with col_name:
+                save_name = st.text_input(
+                    "Tên để lưu:",
+                    value="" if choice == NEW_INSTRUCTION else choice,
+                    placeholder="VD: Phân tích cinematic V3",
+                    label_visibility="collapsed",
+                )
+            with col_save:
+                if st.button("💾 Lưu", use_container_width=True):
+                    try:
+                        saved_as = save_instruction(save_name, instruction_text)
+                        st.session_state["_video_instr_pending"] = saved_as
+                        st.toast(f"Đã lưu instruction “{saved_as}”.", icon="✅")
+                        st.rerun()
+                    except VideoAnalyzerError as e:
+                        st.error(str(e))
+            with col_del:
+                if st.button("🗑️ Xoá", use_container_width=True, disabled=(choice == NEW_INSTRUCTION)):
+                    delete_instruction(choice)
+                    st.session_state["_video_instr_pending"] = NEW_INSTRUCTION
+                    st.toast(f"Đã xoá instruction “{choice}”.", icon="🗑️")
+                    st.rerun()
+
+        submit_video_btn = st.button("🚀 PHÂN TÍCH VIDEO", type="primary", use_container_width=True)
 
         if submit_video_btn:
-            st.session_state["video_instruction"] = instruction_text
             if not video_url.strip():
                 st.warning("⚠️ Vui lòng dán link video Facebook.")
             elif not is_facebook_url(video_url):

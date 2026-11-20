@@ -8,7 +8,8 @@ Configuration (environment variables):
     GEMINI_API_KEY        required - Google AI Studio key
     GEMINI_API_KEYS       optional - comma-separated extra keys, tried in order on quota errors
     VIDEO_INSTRUCTION_FILE optional - path of the default instruction (default prompts/video_instruction.txt)
-    GEMINI_MODEL          optional - default "gemini-2.5-flash"
+    VIDEO_INSTRUCTIONS_FILE optional - JSON store of user-saved instructions (default data/instructions.json)
+    GEMINI_MODEL          optional - default "gemini-3.5-flash"
     GEMINI_MODELS         optional - comma-separated list offered in the UI selector
     GEMINI_FALLBACK_MODEL optional - used when the chosen model returns 503/504 (overloaded)
     GEMINI_TIMEOUT_S      optional - per-request HTTP timeout in seconds (default 300)
@@ -19,27 +20,29 @@ Configuration (environment variables):
 import os
 import re
 import sys
+import json
 import time
 import shutil
 import tempfile
+import threading
 import subprocess
 from pathlib import Path
 from typing import Callable, Optional
 
 BASE_DIR = Path(__file__).resolve().parent
 PROMPT_FILE = Path(os.environ.get("VIDEO_INSTRUCTION_FILE", BASE_DIR / "prompts" / "video_instruction.txt"))
+INSTRUCTIONS_FILE = Path(os.environ.get("VIDEO_INSTRUCTIONS_FILE", BASE_DIR / "data" / "instructions.json"))
 
-DEFAULT_MODEL = os.environ.get("GEMINI_MODEL", "gemini-2.5-flash")
+DEFAULT_MODEL = os.environ.get("GEMINI_MODEL", "gemini-3.5-flash")
 FALLBACK_MODEL = os.environ.get("GEMINI_FALLBACK_MODEL", "").strip()
 TIMEOUT_S = int(os.environ.get("GEMINI_TIMEOUT_S", "300"))
 
 
 def available_models() -> list:
+    """Models offered in the UI; the default model is always first."""
     raw = os.environ.get("GEMINI_MODELS", "")
-    models = [m.strip() for m in raw.split(",") if m.strip()]
-    if DEFAULT_MODEL not in models:
-        models.insert(0, DEFAULT_MODEL)
-    return models
+    models = [m.strip() for m in raw.split(",") if m.strip() and m.strip() != DEFAULT_MODEL]
+    return [DEFAULT_MODEL] + models
 MAX_MB = int(os.environ.get("VIDEO_MAX_MB", "200"))
 MAX_SECONDS = int(os.environ.get("VIDEO_MAX_SECONDS", "1800"))
 TMP_DIR = Path(os.environ.get("VIDEO_TMP_DIR", BASE_DIR / "tmp_videos"))
@@ -58,6 +61,55 @@ def load_default_instruction() -> str:
         return PROMPT_FILE.read_text(encoding="utf-8")
     except FileNotFoundError:
         return ""
+
+
+# ---------------------------------------------------------------------------
+# Saved-instruction store (shared by every user of the web app)
+# ---------------------------------------------------------------------------
+_store_lock = threading.Lock()
+
+
+def load_saved_instructions() -> dict:
+    """Returns {name: text} in saved order; empty dict when nothing is saved yet."""
+    try:
+        data = json.loads(INSTRUCTIONS_FILE.read_text(encoding="utf-8"))
+    except (FileNotFoundError, json.JSONDecodeError):
+        return {}
+    if not isinstance(data, dict):
+        return {}
+    return {k: v for k, v in data.items() if isinstance(k, str) and isinstance(v, str)}
+
+
+def _write_store(data: dict) -> None:
+    INSTRUCTIONS_FILE.parent.mkdir(parents=True, exist_ok=True)
+    tmp = INSTRUCTIONS_FILE.with_suffix(".json.tmp")
+    tmp.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
+    os.replace(tmp, INSTRUCTIONS_FILE)  # atomic on POSIX and Windows
+
+
+def save_instruction(name: str, text: str) -> str:
+    """Creates or overwrites a named instruction. Returns the normalised name."""
+    name = " ".join((name or "").split())
+    text = (text or "").strip()
+    if not name:
+        raise VideoAnalyzerError("Tên instruction đang trống.")
+    if len(name) > 80:
+        raise VideoAnalyzerError("Tên instruction tối đa 80 ký tự.")
+    if not text:
+        raise VideoAnalyzerError("Nội dung instruction đang trống.")
+    with _store_lock:
+        data = load_saved_instructions()
+        data[name] = text
+        _write_store(data)
+    return name
+
+
+def delete_instruction(name: str) -> None:
+    with _store_lock:
+        data = load_saved_instructions()
+        if name in data:
+            del data[name]
+            _write_store(data)
 
 
 def _log(cb: Optional[Callable[[str], None]], msg: str) -> None:
